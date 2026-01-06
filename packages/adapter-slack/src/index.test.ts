@@ -13,6 +13,7 @@ const mockLogger: Logger = {
   info: vi.fn(),
   warn: vi.fn(),
   error: vi.fn(),
+  child: vi.fn().mockReturnThis(),
 };
 
 // ============================================================================
@@ -781,5 +782,67 @@ describe("formatted text extraction", () => {
 
     const message = adapter.parseMessage(event);
     expect(message.text).toContain("@john");
+  });
+});
+
+// ============================================================================
+// Typing Indicator Tests (assistant.threads.setStatus)
+// ============================================================================
+
+describe("typing indicators", () => {
+  it("startTyping calls assistant.threads.setStatus with status message", async () => {
+    const mockApiCall = vi.fn().mockResolvedValue({ ok: true });
+    const adapter = createSlackAdapter({
+      botToken: "xoxb-test-token",
+      signingSecret: "test-secret",
+      logger: mockLogger,
+    });
+
+    // @ts-expect-error accessing private property for testing
+    adapter.client = { apiCall: mockApiCall };
+    await adapter.startTyping("slack:C123:1234567890.123456");
+    expect(mockApiCall).toHaveBeenCalledWith("assistant.threads.setStatus", {
+      channel_id: "C123",
+      thread_ts: "1234567890.123456",
+      status: "is thinking...",
+    });
+  });
+
+  it("startTyping accepts custom status message", async () => {
+    const mockApiCall = vi.fn().mockResolvedValue({ ok: true });
+    const adapter = createSlackAdapter({
+      botToken: "xoxb-test-token",
+      signingSecret: "test-secret",
+      logger: mockLogger,
+    });
+
+    // @ts-expect-error accessing private property for testing
+    adapter.client = { apiCall: mockApiCall };
+    await adapter.startTyping("slack:C123:1234567890.123456", "is analyzing your request...");
+
+    expect(mockApiCall).toHaveBeenCalledWith("assistant.threads.setStatus", {
+      channel_id: "C123",
+      thread_ts: "1234567890.123456",
+      status: "is analyzing your request...",
+    });
+  });
+
+  it("stopTyping calls assistant.threads.setStatus with empty status", async () => {
+    const mockApiCall = vi.fn().mockResolvedValue({ ok: true });
+    const adapter = createSlackAdapter({
+      botToken: "xoxb-test-token",
+      signingSecret: "test-secret",
+      logger: mockLogger,
+    });
+
+    // @ts-expect-error accessing private property for testing
+    adapter.client = { apiCall: mockApiCall };
+
+    await adapter.stopTyping("slack:C123:1234567890.123456");
+    expect(mockApiCall).toHaveBeenCalledWith("assistant.threads.setStatus", {
+      channel_id: "C123",
+      thread_ts: "1234567890.123456",
+      status: "",
+    });
   });
 });

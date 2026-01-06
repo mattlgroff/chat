@@ -954,8 +954,67 @@ export class SlackAdapter implements Adapter<SlackThreadId, unknown> {
     }
   }
 
-  async startTyping(_threadId: string): Promise<void> {
-    // Slack doesn't have a direct typing indicator API for bots
+  /**
+   * Show a typing/loading indicator in Slack using the assistant.threads.setStatus API.
+   *
+   * This requires the `assistant:write` scope and the "Agents & AI Apps" feature
+   * to be enabled in your Slack app settings.
+   *
+   * The status indicator is automatically cleared when you post a message.
+   * You can also call `stopTyping()` to clear it manually.
+   *
+   * @see https://docs.slack.dev/ai/developing-ai-apps/#loading-states
+   */
+  async startTyping(threadId: string, status = "is thinking..."): Promise<void> {
+    const { channel, threadTs } = this.decodeThreadId(threadId);
+    try {
+      this.logger.debug("Slack API: assistant.threads.setStatus", {
+        channel,
+        threadTs,
+        status,
+      });
+
+      await this.client.apiCall("assistant.threads.setStatus", {
+        channel_id: channel,
+        thread_ts: threadTs,
+        status,
+      });
+      this.logger.debug("Slack API: assistant.threads.setStatus response", {
+        ok: true,
+      });
+    } catch (error) {
+      this.logger.warn("Failed to set typing status (requires assistant:write scope)", {
+        error,
+      });
+    }
+  }
+
+  /**
+   * Clear the typing/loading indicator in Slack.
+   *
+   * Note: The status is automatically cleared when you post a message,
+   * so you typically don't need to call this explicitly.
+   *
+   * @see https://docs.slack.dev/ai/developing-ai-apps/#loading-states
+   */
+  async stopTyping(threadId: string): Promise<void> {
+    const { channel, threadTs } = this.decodeThreadId(threadId);
+    try {
+      this.logger.debug("Slack API: assistant.threads.setStatus (clear)", {
+        channel,
+        threadTs,
+      });
+      await this.client.apiCall("assistant.threads.setStatus", {
+        channel_id: channel,
+        thread_ts: threadTs,
+        status: "",
+      });
+      this.logger.debug("Slack API: assistant.threads.setStatus cleared", {
+        ok: true,
+      });
+    } catch (error) {
+      this.logger.warn("Failed to clear typing status", { error });
+    }
   }
 
   /**
