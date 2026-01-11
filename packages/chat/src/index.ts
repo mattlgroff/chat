@@ -1,6 +1,12 @@
 // Main exports
 export { Chat } from "./chat";
-export { ThreadImpl } from "./thread";
+export {
+  deserializeMessage,
+  type SerializedMessage,
+  type SerializedThread,
+  serializeMessage,
+  ThreadImpl,
+} from "./thread";
 
 // Card builders - import then re-export to ensure values are properly exported
 import {
