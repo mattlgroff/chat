@@ -6,6 +6,7 @@ import {
   Card,
   CardText,
   Chat,
+  ConsoleLogger,
   Divider,
   emoji,
   Field,
@@ -19,7 +20,10 @@ import {
 } from "chat";
 import { buildAdapters } from "./adapters";
 
-const state = createRedisState({ url: process.env.REDIS_URL || "" });
+const state = createRedisState({
+  url: process.env.REDIS_URL || "",
+  logger: new ConsoleLogger("debug"),
+});
 const adapters = buildAdapters();
 
 interface ThreadState {
