@@ -5,8 +5,8 @@ const PREVIEW_BRANCH_KEY = "chat-sdk:cache:preview-branch-url";
 
 export default defineHandler(async (event) => {
   try {
-    const body = await readBody(event);
-    const { url } = body;
+    const body = await readBody<{ url?: string }>(event);
+    const url = body?.url;
 
     const client = await requireRedisClient();
 

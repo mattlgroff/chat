@@ -63,7 +63,7 @@ bot.onNewMention(async (thread, message) => {
 
     const result = await agent.stream({ prompt: message.text });
     await thread.post(result.textStream);
-    return;
+    return undefined;
   }
 
   await thread.startTyping();
@@ -109,7 +109,7 @@ bot.onAction("hello", async (event) => {
 });
 
 bot.onAction("info", async (event) => {
-  const threadState = await event.thread.state;
+  const threadState = (await event.thread.state) as ThreadState | null;
   await event.thread.post(
     Card({
       title: "Bot Information",
@@ -199,6 +199,8 @@ bot.onModalSubmit("feedback_form", async (event) => {
       `**Message:** ${message}` +
       (email ? `\n**Email:** ${email}` : ""),
   );
+
+  return undefined;
 });
 
 // Handle modal close (cancel)
