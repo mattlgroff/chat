@@ -107,7 +107,8 @@ function processChild(
       textParts.push("───────────");
       break;
     case "actions":
-      components.push(convertActionsElement(child));
+      // Splits if > 5 buttons as Discord only allows 5 per row
+      components.push(...convertActionsElement(child));
       break;
     case "section":
       processSectionElement(child, textParts, fields, components);
@@ -136,9 +137,15 @@ function convertTextElement(element: TextElement): string {
 }
 
 /**
- * Convert an actions element to a Discord action row.
+ * Discord's maximum buttons per action row.
  */
-function convertActionsElement(element: ActionsElement): DiscordActionRow {
+const DISCORD_MAX_BUTTONS_PER_ROW = 5;
+
+/**
+ * Convert an actions element to Discord action rows.
+ * Splits into multiple rows if more than 5 buttons (Discord's limit).
+ */
+function convertActionsElement(element: ActionsElement): DiscordActionRow[] {
   const buttons: DiscordButton[] = element.children.map((button) => {
     if (button.type === "link-button") {
       return convertLinkButtonElement(button);
@@ -146,10 +153,21 @@ function convertActionsElement(element: ActionsElement): DiscordActionRow {
     return convertButtonElement(button);
   });
 
-  return {
-    type: 1, // Action Row
-    components: buttons,
-  };
+  // If no buttons, return empty array (don't create empty action row)
+  if (buttons.length === 0) {
+    return [];
+  }
+
+  // Split buttons into chunks of 5 (Discord's max per row)
+  const rows: DiscordActionRow[] = [];
+  for (let i = 0; i < buttons.length; i += DISCORD_MAX_BUTTONS_PER_ROW) {
+    rows.push({
+      type: 1, // Action Row
+      components: buttons.slice(i, i + DISCORD_MAX_BUTTONS_PER_ROW),
+    });
+  }
+
+  return rows;
 }
 
 /**
