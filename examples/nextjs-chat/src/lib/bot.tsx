@@ -23,7 +23,7 @@ import { buildAdapters } from "./adapters";
 
 const state = createRedisState({
   url: process.env.REDIS_URL || "",
-  keyPrefix: "chat-sdk-webhooks"
+  keyPrefix: "chat-sdk-webhooks",
 });
 const adapters = buildAdapters();
 
@@ -199,9 +199,7 @@ bot.onModalSubmit("feedback_form", async (event) => {
   });
   console.log("relatedThread", JSON.stringify(event.relatedThread, null, 2));
   console.log("relatedMessage", JSON.stringify(event.relatedMessage, null, 2));
-  await event.relatedMessage?.edit(
-    `${emoji.check} **Feedback received!**`,
-  );
+  await event.relatedMessage?.edit(`${emoji.check} **Feedback received!**`);
   await event.relatedThread?.post(
     <Card title={`${emoji.check} Feedback received!`}>
       <Text>Thank you for your feedback!</Text>
