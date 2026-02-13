@@ -1,5 +1,4 @@
 import { createRedisState } from "@chat-adapter/state-redis";
-import { createSavoir } from "@savoir/sdk";
 import { ToolLoopAgent } from "ai";
 import {
   Actions,
