@@ -282,16 +282,11 @@ describe("Replay Tests - Modals", () => {
         "https://hooks.slack.com/actions/T0A6R9YLSKA/10497963005175/6JXlnuaOBOquTvi51uTnoFgi",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ delete_original: true }),
-        }),
-      );
-
-      expect(ctx.mockClient.chat.postEphemeral).toHaveBeenCalledWith(
-        expect.objectContaining({
-          channel: "C0ACELCQBAB",
-          thread_ts: "1771126602.612659",
-          user: "U0A60JBHJBE",
-          text: expect.stringContaining("Updated ephemeral content!"),
+          body: JSON.stringify({
+            replace_original: true,
+            text: "Updated ephemeral content!",
+            thread_ts: "1771126602.612659",
+          }),
         }),
       );
 

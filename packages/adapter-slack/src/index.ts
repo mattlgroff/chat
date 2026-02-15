@@ -1486,23 +1486,19 @@ export class SlackAdapter implements Adapter<SlackThreadId, unknown> {
   ): Promise<RawMessage<unknown>> {
     const ephemeral = this.decodeEphemeralMessageId(messageId);
     if (ephemeral) {
-      await this.deleteViaResponseUrl(ephemeral.responseUrl);
-      if (ephemeral.userId) {
-        const result = await this.postEphemeral(
-          threadId,
-          ephemeral.userId,
+      const { threadTs } = this.decodeThreadId(threadId);
+      const result = await this.sendToResponseUrl(
+        ephemeral.responseUrl,
+        "replace",
+        {
           message,
-        );
-        return {
-          id: result.id,
-          threadId,
-          raw: { ephemeral: true, ...(result.raw as Record<string, unknown>) },
-        };
-      }
+          threadTs,
+        },
+      );
       return {
         id: ephemeral.messageTs,
         threadId,
-        raw: { ephemeral: true, deleted: true },
+        raw: { ephemeral: true, ...result },
       };
     }
 
@@ -1582,7 +1578,7 @@ export class SlackAdapter implements Adapter<SlackThreadId, unknown> {
   async deleteMessage(threadId: string, messageId: string): Promise<void> {
     const ephemeral = this.decodeEphemeralMessageId(messageId);
     if (ephemeral) {
-      await this.deleteViaResponseUrl(ephemeral.responseUrl);
+      await this.sendToResponseUrl(ephemeral.responseUrl, "delete");
       return;
     }
     const { channel } = this.decodeThreadId(threadId);
@@ -2149,30 +2145,76 @@ export class SlackAdapter implements Adapter<SlackThreadId, unknown> {
   }
 
   /**
-   * Delete an ephemeral message via Slack's response_url mechanism.
-   * Note: replace_original doesn't work for threaded ephemeral messages
-   * (causes duplicates in main channel), so we only support delete.
+   * Send a request to Slack's response_url to modify an ephemeral message.
    */
-  private async deleteViaResponseUrl(responseUrl: string): Promise<void> {
-    this.logger.debug("Slack response_url delete request");
+  private async sendToResponseUrl(
+    responseUrl: string,
+    action: "replace" | "delete",
+    options?: { message?: AdapterPostableMessage; threadTs?: string },
+  ): Promise<Record<string, unknown>> {
+    let payload: Record<string, unknown>;
 
+    if (action === "delete") {
+      payload = { delete_original: true };
+    } else {
+      const message = options?.message;
+      if (!message) {
+        throw new ChatError(
+          "Message required for replace action",
+          "INVALID_ARGS",
+        );
+      }
+      const card = extractCard(message);
+      if (card) {
+        payload = {
+          replace_original: true,
+          text: cardToFallbackText(card),
+          blocks: cardToBlockKit(card),
+        };
+      } else {
+        payload = {
+          replace_original: true,
+          text: convertEmojiPlaceholders(
+            this.formatConverter.renderPostable(message),
+            "slack",
+          ),
+        };
+      }
+      if (options?.threadTs) {
+        payload.thread_ts = options.threadTs;
+      }
+    }
+    this.logger.debug("Slack response_url request", {
+      action,
+      threadTs: options?.threadTs,
+    });
     const response = await fetch(responseUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ delete_original: true }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
-      const text = await response.text();
+      const errorText = await response.text();
       this.logger.error("Slack response_url failed", {
+        action,
         status: response.status,
-        body: text,
+        body: errorText,
       });
       throw new ChatError(
-        `Failed to delete via response_url: ${text}`,
+        `Failed to ${action} via response_url: ${errorText}`,
         response.status.toString(),
       );
     }
+    const responseText = await response.text();
+    if (responseText) {
+      try {
+        return JSON.parse(responseText) as Record<string, unknown>;
+      } catch {
+        return { raw: responseText };
+      }
+    }
+    return {};
   }
 }
 

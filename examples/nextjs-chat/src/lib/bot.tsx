@@ -154,9 +154,6 @@ bot.onModalSubmit("ephemeral_modal_form", async (event) => {
       <Text>The original ephemeral message was updated.</Text>
     </Card>,
   );
-  await event.relatedThread?.post(
-    `${emoji.sparkles} ${event.user.fullName} submitted a response from an ephemeral modal: ${event.values.response}`,
-  );
 });
 
 // Handle card button actions
