@@ -1069,13 +1069,44 @@ export class SlackAdapter implements Adapter<SlackThreadId, unknown> {
     this.chat.processReaction({ ...reactionEvent, adapter: this }, options);
   }
 
+  /**
+   * Resolve inline user mentions in Slack mrkdwn text.
+   * Converts <@U123> to <@U123|displayName> so that toAst/extractPlainText
+   * renders them as @displayName instead of @U123.
+   */
+  private async resolveInlineMentions(text: string): Promise<string> {
+    const mentionPattern = /<@([A-Z0-9]+)(?:\|[^>]*)?>/g;
+    const userIds = new Set<string>();
+    let match: RegExpExecArray | null = mentionPattern.exec(text);
+    while (match) {
+      userIds.add(match[1]);
+      match = mentionPattern.exec(text);
+    }
+    if (userIds.size === 0) return text;
+
+    // Look up all mentioned users in parallel
+    const lookups = await Promise.all(
+      [...userIds].map(async (uid) => {
+        const info = await this.lookupUser(uid);
+        return [uid, info.displayName] as const;
+      }),
+    );
+    const nameMap = new Map(lookups);
+
+    // Replace <@U123> and <@U123|old> with <@U123|resolvedName>
+    return text.replace(/<@([A-Z0-9]+)(?:\|[^>]*)?>/g, (_m, uid: string) => {
+      const name = nameMap.get(uid);
+      return name ? `<@${uid}|${name}>` : `<@${uid}>`;
+    });
+  }
+
   private async parseSlackMessage(
     event: SlackEvent,
     threadId: string,
   ): Promise<Message<unknown>> {
     const isMe = this.isMessageFromSelf(event);
 
-    const text = event.text || "";
+    const rawText = event.text || "";
 
     // Get user info - for human users we need to look up the display name
     // since Slack events only include the user ID, not the username
@@ -1088,6 +1119,9 @@ export class SlackAdapter implements Adapter<SlackThreadId, unknown> {
       userName = userInfo.displayName;
       fullName = userInfo.realName;
     }
+
+    // Resolve inline @mentions to display names
+    const text = await this.resolveInlineMentions(rawText);
 
     return new Message({
       id: event.ts || "",

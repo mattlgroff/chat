@@ -224,7 +224,7 @@ export class ChannelImpl<TState = Record<string, unknown>>
     };
   }
 
-  async fetchInfo(): Promise<ChannelInfo> {
+  async fetchMetadata(): Promise<ChannelInfo> {
     if (this.adapter.fetchChannelInfo) {
       const info = await this.adapter.fetchChannelInfo(this.id);
       this._name = info.name ?? null;

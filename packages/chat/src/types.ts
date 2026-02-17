@@ -545,7 +545,7 @@ export interface Channel<
   threads(): AsyncIterable<ThreadSummary<TRawMessage>>;
 
   /** Fetch channel metadata from the platform */
-  fetchInfo(): Promise<ChannelInfo>;
+  fetchMetadata(): Promise<ChannelInfo>;
 }
 
 /**

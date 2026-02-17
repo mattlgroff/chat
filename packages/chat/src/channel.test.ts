@@ -342,7 +342,7 @@ describe("ChannelImpl", () => {
     });
   });
 
-  describe("fetchInfo", () => {
+  describe("fetchMetadata", () => {
     it("should fetch channel info and set name", async () => {
       const mockAdapter = createMockAdapter();
       const mockState = createMockState();
@@ -355,7 +355,7 @@ describe("ChannelImpl", () => {
 
       expect(channel.name).toBeNull();
 
-      const info = await channel.fetchInfo();
+      const info = await channel.fetchMetadata();
 
       expect(info.id).toBe("slack:C123");
       expect(info.name).toBe("#slack:C123");
@@ -373,7 +373,7 @@ describe("ChannelImpl", () => {
         stateAdapter: mockState,
       });
 
-      const info = await channel.fetchInfo();
+      const info = await channel.fetchMetadata();
 
       expect(info.id).toBe("slack:C123");
       expect(info.isDM).toBe(false);

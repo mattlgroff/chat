@@ -481,6 +481,10 @@ bot.onAction("channel-post", async (event) => {
   const channel = thread.channel;
 
   try {
+    // Fetch channel info for the name
+    const info = await channel.fetchMetadata();
+    const channelName = info.name || channel.id;
+
     // Get the last 3 top-level channel messages using the backward iterator
     const recent: string[] = [];
     for await (const msg of channel.messages) {
@@ -497,7 +501,7 @@ bot.onAction("channel-post", async (event) => {
     await channel.post(
       <Card title={`${emoji.memo} Channel Summary`}>
         <Section>
-          <Text>{`Channel: ${channel.id}`}</Text>
+          <Text>{`Channel: ${channelName}`}</Text>
           <Text>**Last 3 top-level messages:**</Text>
           <Text>{summary}</Text>
         </Section>
