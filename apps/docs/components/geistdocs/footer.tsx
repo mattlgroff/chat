@@ -9,7 +9,7 @@ interface FooterProps {
 }
 
 export const Footer = ({
-  copyright = `Copyright Vercel ${new Date().getFullYear()}. All rights reserved.`,
+  copyright = `Copyright Vercel ${new Date().getFullYear()}. Built with care.`,
 }: FooterProps) => (
   <footer className="border-t px-4 py-5 md:px-6">
     <div className="mx-auto flex flex-col items-center justify-between gap-4 sm:flex-row">
