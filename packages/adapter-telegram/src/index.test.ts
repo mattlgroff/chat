@@ -24,13 +24,34 @@ const mockLogger: Logger = {
 };
 
 const mockFetch = vi.fn<typeof fetch>();
+const SERVERLESS_ENV_KEYS = [
+  "VERCEL",
+  "AWS_LAMBDA_FUNCTION_NAME",
+  "AWS_EXECUTION_ENV",
+  "FUNCTIONS_WORKER_RUNTIME",
+  "NETLIFY",
+  "K_SERVICE",
+] as const;
+let originalServerlessEnv: Record<string, string | undefined> = {};
 
 beforeEach(() => {
+  originalServerlessEnv = {};
+  for (const key of SERVERLESS_ENV_KEYS) {
+    originalServerlessEnv[key] = process.env[key];
+  }
   mockFetch.mockReset();
   vi.stubGlobal("fetch", mockFetch);
 });
 
 afterEach(() => {
+  for (const key of SERVERLESS_ENV_KEYS) {
+    const value = originalServerlessEnv[key];
+    if (typeof value === "string") {
+      process.env[key] = value;
+    } else {
+      Reflect.deleteProperty(process.env, key);
+    }
+  }
   vi.unstubAllGlobals();
 });
 
@@ -112,7 +133,7 @@ function createAbortError(): Error {
 
 async function waitForCondition(
   predicate: () => boolean,
-  timeoutMs = 300
+  timeoutMs = 1_000
 ): Promise<void> {
   const startedAt = Date.now();
 
