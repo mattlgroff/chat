@@ -64,7 +64,7 @@ import {
 export type SlackAdapterMode = "webhook" | "socket";
 
 /** Envelope for events forwarded from a socket mode listener via HTTP POST */
-export interface SlackForwardedSocketEvent {
+interface SlackForwardedSocketEvent {
   body: Record<string, unknown>;
   timestamp: number;
   type: "socket_event";
