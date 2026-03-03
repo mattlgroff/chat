@@ -11,6 +11,7 @@ export {
   type MessageData,
   type SerializedMessage,
 } from "./message";
+export { isPlan, Plan } from "./plan";
 export { StreamingMarkdownRenderer } from "./streaming-markdown";
 export { type SerializedThread, ThreadImpl } from "./thread";
 

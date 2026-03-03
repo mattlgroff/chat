@@ -4,6 +4,7 @@ import {
   createMockState,
   createTestMessage,
 } from "./mock-adapter";
+import { Plan } from "./plan";
 import { ThreadImpl } from "./thread";
 import type { Adapter, Message } from "./types";
 
@@ -1113,7 +1114,7 @@ describe("ThreadImpl", () => {
     // AdapterPostableMessage | CardJSXElement which excludes AsyncIterable<string>
   });
 
-describe("postPlan", () => {
+describe("post with Plan", () => {
     let thread: ThreadImpl;
     let mockAdapter: Adapter;
     let mockState: ReturnType<typeof createMockState>;
@@ -1132,7 +1133,8 @@ describe("postPlan", () => {
 
     it("should return no-op PlanMessage when adapter does not support plans", async () => {
       // Adapter has no postPlan/editPlan methods by default
-      const plan = await thread.postPlan({ initialMessage: "Starting..." });
+      const plan = new Plan({ initialMessage: "Starting..." })
+      await thread.post(plan);
 
       // Should still return a PlanMessage with inspectors working
       expect(plan.title()).toBe("Starting...");
@@ -1162,7 +1164,7 @@ describe("postPlan", () => {
       mockAdapter.postPlan = mockPostPlan;
       mockAdapter.editPlan = mockEditPlan;
 
-      const plan = await thread.postPlan({ initialMessage: "Working..." });
+      const plan = await thread.post(new Plan({ initialMessage: "Working..." }));
 
       expect(mockPostPlan).toHaveBeenCalledWith(
         "slack:C123:1234.5678",
@@ -1188,7 +1190,8 @@ describe("postPlan", () => {
       mockAdapter.postPlan = mockPostPlan;
       mockAdapter.editPlan = mockEditPlan;
 
-      const plan = await thread.postPlan({ initialMessage: "Starting" });
+      const plan = new Plan({ initialMessage: "Starting" });
+      await thread.post(plan);
       const task = await plan.addTask({
         title: "Fetch data",
         children: ["Call API", "Parse response"],
@@ -1213,7 +1216,8 @@ describe("postPlan", () => {
       mockAdapter.postPlan = mockPostPlan;
       mockAdapter.editPlan = mockEditPlan;
 
-      const plan = await thread.postPlan({ initialMessage: "Working" });
+      const plan = new Plan({ initialMessage: "Working" });
+      await thread.post(plan);
       await plan.addTask({ title: "Step 1" });
       const updated = await plan.updateTask("Got result: 42");
 
@@ -1230,7 +1234,8 @@ describe("postPlan", () => {
       mockAdapter.postPlan = mockPostPlan;
       mockAdapter.editPlan = mockEditPlan;
 
-      const plan = await thread.postPlan({ initialMessage: "Starting" });
+      const plan = new Plan({ initialMessage: "Starting" });
+      await thread.post(plan);
       await plan.addTask({ title: "Task 1" });
       await plan.complete({ completeMessage: "All done!" });
 
@@ -1250,7 +1255,8 @@ describe("postPlan", () => {
       mockAdapter.postPlan = mockPostPlan;
       mockAdapter.editPlan = mockEditPlan;
 
-      const plan = await thread.postPlan({ initialMessage: "First run" });
+      const plan = new Plan({ initialMessage: "First run" });
+      await thread.post(plan);
       await plan.addTask({ title: "Task A" });
       await plan.addTask({ title: "Task B" });
 
@@ -1272,7 +1278,8 @@ describe("postPlan", () => {
       mockAdapter.postPlan = mockPostPlan;
       mockAdapter.editPlan = mockEditPlan;
 
-      const plan = await thread.postPlan({ initialMessage: "Start" });
+      const plan = new Plan({ initialMessage: "Start" });
+      await thread.post(plan);
 
       // Initially, current task is the first one
       let current = plan.currentTask();
@@ -1302,15 +1309,18 @@ describe("postPlan", () => {
       mockAdapter.editPlan = mockEditPlan;
 
       // String
-      let plan = await thread.postPlan({ initialMessage: "Simple string" });
+      let plan = new Plan({ initialMessage: "Simple string" });
+      await thread.post(plan);
       expect(plan.title()).toBe("Simple string");
 
       // Array of strings
-      plan = await thread.postPlan({ initialMessage: ["Line 1", "Line 2"] });
+      plan = new Plan({ initialMessage: ["Line 1", "Line 2"] });
+      await thread.post(plan);
       expect(plan.title()).toBe("Line 1 Line 2");
 
       // Empty string defaults to "Plan"
-      plan = await thread.postPlan({ initialMessage: "" });
+      plan = new Plan({ initialMessage: "" });
+      await thread.post(plan);
       expect(plan.title()).toBe("Plan");
     });
 
@@ -1331,7 +1341,7 @@ describe("postPlan", () => {
       mockAdapter.postPlan = mockPostPlan;
       mockAdapter.editPlan = mockEditPlan;
 
-      const plan = await thread.postPlan({ initialMessage: "Start" });
+      const plan = await thread.post(new Plan({ initialMessage: "Start" }));
 
       // Fire off multiple updates concurrently
       await Promise.all([

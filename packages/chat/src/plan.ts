@@ -34,47 +34,88 @@ export function contentToPlainText(content: PlanContent | undefined): string {
   return "";
 }
 
-interface PlanSession {
+const PLAN_TYPE = Symbol.for("chat.plan");
+export function isPlan(value: unknown): value is Plan {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as Plan).$$typeof === PLAN_TYPE
+  );
+}
+
+interface BoundState {
+  adapter: Adapter;
   messageId: string;
-  plan: PlanModel;
+  threadId: string;
   threadIdForEdits: string;
   updateChain: Promise<void>;
 }
 
-export class PlanMessageImpl implements PlanMessage {
-  readonly id: string;
-  readonly threadId: string;
+/**
+ * A Plan represents a task list that can be posted to a thread.
+ *
+ * Create a plan with `Plan({ initialMessage: "..." })` and post it with `thread.post(plan)`.
+ * After posting, use methods like `addTask()`, `updateTask()`, and `complete()` to update it.
+ *
+ * @example
+ * ```typescript
+ * const plan = Plan({ initialMessage: "Starting task..." });
+ * await thread.post(plan);
+ * await plan.addTask({ title: "Fetch data" });
+ * await plan.updateTask("Got 42 results");
+ * await plan.complete({ completeMessage: "Done!" });
+ * ```
+ */
+export class Plan implements PlanMessage {
+  readonly $$typeof = PLAN_TYPE;
 
-  private readonly adapter: Adapter;
-  private readonly supported: boolean;
-  private readonly session: PlanSession;
+  private _plan: PlanModel;
+  private _bound: BoundState | null = null;
 
-  constructor(options: {
-    adapter: Adapter;
-    supported: boolean;
-    threadId: string;
-    messageId: string;
-    threadIdForEdits: string;
-    plan: PlanModel;
-  }) {
-    this.adapter = options.adapter;
-    this.supported = options.supported;
-    this.threadId = options.threadId;
-    this.id = options.messageId;
-    this.session = {
-      messageId: options.messageId,
-      threadIdForEdits: options.threadIdForEdits,
-      plan: options.plan,
+  constructor(options: StartPlanOptions) {
+    const title = contentToPlainText(options.initialMessage) || "Plan";
+    const firstTask: PlanModelTask = {
+      id: crypto.randomUUID(),
+      title,
+      status: "in_progress",
+    };
+    this._plan = { title, tasks: [firstTask] };
+  }
+
+  get id(): string {
+    return this._bound?.messageId ?? "";
+  }
+  get threadId(): string {
+    return this._bound?.threadId ?? "";
+  }
+
+  _bind(
+    adapter: Adapter,
+    threadId: string,
+    messageId: string,
+    threadIdForEdits: string
+  ): void {
+    this._bound = {
+      adapter,
+      messageId,
+      threadId,
+      threadIdForEdits,
       updateChain: Promise.resolve(),
     };
   }
+  _toModel(): PlanModel {
+    return this._plan;
+  }
+  _isSupported(): boolean {
+    return !!(this._bound?.adapter.postPlan && this._bound?.adapter.editPlan);
+  }
 
   title(): string {
-    return this.session.plan.title;
+    return this._plan.title;
   }
 
   tasks(): PlanTask[] {
-    return this.session.plan.tasks.map((t) => ({
+    return this._plan.tasks.map((t) => ({
       id: t.id,
       title: t.title,
       status: t.status,
@@ -83,10 +124,8 @@ export class PlanMessageImpl implements PlanMessage {
 
   currentTask(): PlanTask | null {
     const current =
-      [...this.session.plan.tasks]
-        .reverse()
-        .find((t) => t.status === "in_progress") ??
-      this.session.plan.tasks.at(-1);
+      [...this._plan.tasks].reverse().find((t) => t.status === "in_progress") ??
+      this._plan.tasks.at(-1);
     if (!current) {
       return null;
     }
@@ -94,17 +133,17 @@ export class PlanMessageImpl implements PlanMessage {
   }
 
   async reset(options: StartPlanOptions): Promise<PlanTask | null> {
-    if (!this.supported) {
+    if (!this._bound || !this._isSupported()) {
       return null;
     }
 
-    const title = this.contentToText(options.initialMessage) || "Plan";
+    const title = contentToPlainText(options.initialMessage) || "Plan";
     const firstTask: PlanModelTask = {
       id: crypto.randomUUID(),
       title,
       status: "in_progress",
     };
-    this.session.plan = { title, tasks: [firstTask] };
+    this._plan = { title, tasks: [firstTask] };
     await this.enqueueEdit();
     return {
       id: firstTask.id,
@@ -114,11 +153,11 @@ export class PlanMessageImpl implements PlanMessage {
   }
 
   async addTask(options: AddTaskOptions): Promise<PlanTask | null> {
-    if (!this.supported) {
+    if (!this._bound || !this._isSupported()) {
       return null;
     }
-    const title = this.contentToText(options.title) || "Task";
-    for (const task of this.session.plan.tasks) {
+    const title = contentToPlainText(options.title) || "Task";
+    for (const task of this._plan.tasks) {
       if (task.status === "in_progress") {
         task.status = "complete";
       }
@@ -129,22 +168,20 @@ export class PlanMessageImpl implements PlanMessage {
       status: "in_progress",
       details: options.children,
     };
-    this.session.plan.tasks.push(nextTask);
-    this.session.plan.title = title;
+    this._plan.tasks.push(nextTask);
+    this._plan.title = title;
 
     await this.enqueueEdit();
     return { id: nextTask.id, title: nextTask.title, status: nextTask.status };
   }
 
   async updateTask(update?: UpdateTaskInput): Promise<PlanTask | null> {
-    if (!this.supported) {
+    if (!this._bound || !this._isSupported()) {
       return null;
     }
     const current =
-      [...this.session.plan.tasks]
-        .reverse()
-        .find((t) => t.status === "in_progress") ??
-      this.session.plan.tasks.at(-1);
+      [...this._plan.tasks].reverse().find((t) => t.status === "in_progress") ??
+      this._plan.tasks.at(-1);
 
     if (!current) {
       return null;
@@ -166,41 +203,41 @@ export class PlanMessageImpl implements PlanMessage {
   }
 
   async complete(options: CompletePlanOptions): Promise<void> {
-    if (!this.supported) {
+    if (!this._bound || !this._isSupported()) {
       return;
     }
-    for (const task of this.session.plan.tasks) {
+    for (const task of this._plan.tasks) {
       if (task.status === "in_progress") {
         task.status = "complete";
       }
     }
-    this.session.plan.title =
-      this.contentToText(options.completeMessage) || this.session.plan.title;
+    this._plan.title =
+      contentToPlainText(options.completeMessage) || this._plan.title;
     await this.enqueueEdit();
   }
 
-  private contentToText(content: PlanContent | undefined): string {
-    return contentToPlainText(content);
-  }
-
   private enqueueEdit(): Promise<void> {
-    const editPlan = this.adapter.editPlan;
+    if (!this._bound) {
+      return Promise.resolve();
+    }
+    const editPlan = this._bound.adapter.editPlan;
     if (!editPlan) {
       return Promise.resolve();
     }
+    const bound = this._bound;
     const doEdit = async (): Promise<void> => {
       await editPlan.call(
-        this.adapter,
-        this.session.threadIdForEdits,
-        this.session.messageId,
-        this.session.plan
+        bound.adapter,
+        bound.threadIdForEdits,
+        bound.messageId,
+        this._plan
       );
     };
-    const chained = this.session.updateChain.then(doEdit, doEdit);
-    this.session.updateChain = chained.then(
+    const chained = bound.updateChain.then(doEdit, doEdit);
+    bound.updateChain = chained.then(
       () => undefined,
       (err) => {
-        console.warn("[PlanMessage] Failed to edit plan:", err);
+        console.warn("[Plan] Failed to edit plan:", err);
       }
     );
     return chained;

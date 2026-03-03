@@ -8,6 +8,7 @@ import type { CardJSXElement } from "./jsx-runtime";
 import type { Logger, LogLevel } from "./logger";
 import type { Message } from "./message";
 import type { ModalElement } from "./modals";
+import type { Plan } from "./plan";
 
 // =============================================================================
 // Re-exports from extracted modules
@@ -556,7 +557,7 @@ export interface Postable<
    */
   post(
     message: string | PostableMessage | CardJSXElement
-  ): Promise<SentMessage<TRawMessage>>;
+  ): Promise<SentMessage<TRawMessage> | PlanMessage>;
 
   /**
    * Post an ephemeral message visible only to a specific user.
@@ -742,11 +743,17 @@ export interface Thread<TState = Record<string, unknown>, TRawMessage = unknown>
    * // Stream from AI SDK
    * const result = await agent.stream({ prompt: message.text });
    * await thread.post(result.textStream);
+   *
+   * // Plan with live updates
+   * const plan = new Plan({ initialMessage: "Working..." });
+   * await thread.post(plan);
+   * await plan.addTask({ title: "Step 1" });
+   * await plan.complete({ completeMessage: "Done!" });
    * ```
    */
   post(
     message: string | PostableMessage | CardJSXElement
-  ): Promise<SentMessage<TRawMessage>>;
+  ): Promise<SentMessage<TRawMessage> | PlanMessage>;
 
   /**
    * Post an ephemeral message visible only to a specific user.
@@ -781,14 +788,6 @@ export interface Thread<TState = Record<string, unknown>, TRawMessage = unknown>
     message: AdapterPostableMessage | CardJSXElement,
     options: PostEphemeralOptions
   ): Promise<EphemeralMessage | null>;
-
-  /**
-   * Post a new plan message in this thread.
-   *
-   * Platforms that don't support native plan surfaces will return a PlanMessage
-   * that no-ops (v1 behavior).
-   */
-  postPlan(options: StartPlanOptions): Promise<PlanMessage>;
 
   /** Recently fetched messages (cached) */
   recentMessages: Message<TRawMessage>[];
@@ -1110,7 +1109,10 @@ export type AdapterPostableMessage =
  * - `CardElement` - Direct card element
  * - `AsyncIterable<string>` - Streaming text (e.g., from AI SDK's textStream)
  */
-export type PostableMessage = AdapterPostableMessage | AsyncIterable<string>;
+export type PostableMessage =
+  | AdapterPostableMessage
+  | AsyncIterable<string>
+  | Plan;
 
 export interface PostableRaw {
   /** File/image attachments */

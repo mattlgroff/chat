@@ -12,7 +12,7 @@ import {
   toPlainText,
 } from "./markdown";
 import { Message, type SerializedMessage } from "./message";
-import { contentToPlainText, PlanMessageImpl } from "./plan";
+import { isPlan, Plan } from "./plan";
 import { StreamingMarkdownRenderer } from "./streaming-markdown";
 import type {
   Adapter,
@@ -22,12 +22,9 @@ import type {
   Channel,
   EphemeralMessage,
   PlanMessage,
-  PlanModel,
-  PlanModelTask,
   PostableMessage,
   PostEphemeralOptions,
   SentMessage,
-  StartPlanOptions,
   StateAdapter,
   StreamOptions,
   Thread,
@@ -334,7 +331,12 @@ export class ThreadImpl<TState = Record<string, unknown>>
 
   async post(
     message: string | PostableMessage | CardJSXElement
-  ): Promise<SentMessage> {
+  ): Promise<SentMessage | PlanMessage> {
+    // Handle Plan objects
+    if (isPlan(message)) {
+      return this.handlePlanPost(message);
+    }
+
     // Handle AsyncIterable (streaming)
     if (isAsyncIterable(message)) {
       return this.handleStream(message);
@@ -362,6 +364,20 @@ export class ThreadImpl<TState = Record<string, unknown>>
       rawMessage.threadId
     );
     return result;
+  }
+
+  private async handlePlanPost(plan: Plan): Promise<PlanMessage> {
+    const adapter = this.adapter;
+
+    if (adapter.postPlan && adapter.editPlan) {
+      const raw = await adapter.postPlan(this.id, plan._toModel());
+      const threadIdForEdits = raw.threadId ?? this.id;
+      plan._bind(adapter, this.id, raw.id, threadIdForEdits);
+    } else {
+      plan._bind(adapter, this.id, `plan_${crypto.randomUUID()}`, this.id);
+    }
+
+    return plan;
   }
 
   async postEphemeral(
@@ -580,41 +596,6 @@ export class ThreadImpl<TState = Record<string, unknown>>
   async refresh(): Promise<void> {
     const result = await this.adapter.fetchMessages(this.id, { limit: 50 });
     this._recentMessages = result.messages;
-  }
-
-  async postPlan(options: StartPlanOptions): Promise<PlanMessage> {
-    const adapter = this.adapter;
-    const postPlan = adapter.postPlan;
-    const editPlan = adapter.editPlan;
-
-    const title = contentToPlainText(options.initialMessage) || "Plan";
-    const firstTask: PlanModelTask = {
-      id: crypto.randomUUID(),
-      title,
-      status: "in_progress",
-    };
-    const plan: PlanModel = { title, tasks: [firstTask] };
-
-    if (!(postPlan && editPlan)) {
-      return new PlanMessageImpl({
-        adapter,
-        supported: false,
-        threadId: this.id,
-        messageId: `plan_${crypto.randomUUID()}`,
-        threadIdForEdits: this.id,
-        plan,
-      });
-    }
-    const raw = await postPlan.call(adapter, this.id, plan);
-    const threadIdForEdits = raw.threadId ?? this.id;
-    return new PlanMessageImpl({
-      adapter,
-      supported: true,
-      threadId: threadIdForEdits,
-      messageId: raw.id,
-      threadIdForEdits,
-      plan,
-    });
   }
 
   mentionUser(userId: string): string {

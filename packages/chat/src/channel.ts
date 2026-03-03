@@ -10,6 +10,7 @@ import {
   toPlainText,
 } from "./markdown";
 import { Message } from "./message";
+import { isPlan, Plan } from "./plan";
 import type {
   Adapter,
   AdapterPostableMessage,
@@ -17,6 +18,7 @@ import type {
   Channel,
   ChannelInfo,
   EphemeralMessage,
+  PlanMessage,
   PostableMessage,
   PostEphemeralOptions,
   SentMessage,
@@ -241,7 +243,12 @@ export class ChannelImpl<TState = Record<string, unknown>>
 
   async post(
     message: string | PostableMessage | CardJSXElement
-  ): Promise<SentMessage> {
+  ): Promise<SentMessage | PlanMessage> {
+    // Handle Plan objects
+    if (isPlan(message)) {
+      return this.handlePlanPost(message);
+    }
+
     // Handle AsyncIterable (streaming) — not supported at channel level,
     // fall through to postMessage
     if (isAsyncIterable(message)) {
@@ -266,6 +273,20 @@ export class ChannelImpl<TState = Record<string, unknown>>
     }
 
     return this.postSingleMessage(postable);
+  }
+
+  private async handlePlanPost(plan: Plan): Promise<PlanMessage> {
+    const adapter = this.adapter;
+
+    if (adapter.postPlan && adapter.editPlan) {
+      const raw = await adapter.postPlan(this.id, plan._toModel());
+      const threadIdForEdits = raw.threadId ?? this.id;
+      plan._bind(adapter, this.id, raw.id, threadIdForEdits);
+    } else {
+      plan._bind(adapter, this.id, `plan_${crypto.randomUUID()}`, this.id);
+    }
+
+    return plan;
   }
 
   private async postSingleMessage(
