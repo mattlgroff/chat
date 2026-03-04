@@ -1987,13 +1987,19 @@ export class SlackAdapter implements Adapter<SlackThreadId, unknown> {
   }
 
   // ===========================================================================
-  // Plan/Task blocks
+  // PostableObject (Plan, etc.) support
   // ===========================================================================
 
-  async postPlan(
+  async postObject(
     threadId: string,
-    plan: PlanModel
+    kind: string,
+    data: unknown
   ): Promise<RawMessage<unknown>> {
+    if (kind !== "plan") {
+      throw new Error(`Unsupported postable object kind: ${kind}`);
+    }
+
+    const plan = data as PlanModel;
     const { channel, threadTs } = this.decodeThreadId(threadId);
     const text = this.renderPlanFallbackText(plan);
     const blocks = this.planToBlockKit(plan);
@@ -2021,11 +2027,17 @@ export class SlackAdapter implements Adapter<SlackThreadId, unknown> {
     }
   }
 
-  async editPlan(
+  async editObject(
     threadId: string,
     messageId: string,
-    plan: PlanModel
+    kind: string,
+    data: unknown
   ): Promise<RawMessage<unknown>> {
+    if (kind !== "plan") {
+      throw new Error(`Unsupported postable object kind: ${kind}`);
+    }
+
+    const plan = data as PlanModel;
     const { channel } = this.decodeThreadId(threadId);
     const text = this.renderPlanFallbackText(plan);
     const blocks = this.planToBlockKit(plan);

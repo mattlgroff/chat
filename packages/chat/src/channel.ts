@@ -10,7 +10,7 @@ import {
   toPlainText,
 } from "./markdown";
 import { Message } from "./message";
-import { isPlan, type Plan } from "./plan";
+import { isPostableObject } from "./plan";
 import type {
   Adapter,
   AdapterPostableMessage,
@@ -18,8 +18,8 @@ import type {
   Channel,
   ChannelInfo,
   EphemeralMessage,
-  PlanMessage,
   PostableMessage,
+  PostableObject,
   PostEphemeralOptions,
   SentMessage,
   StateAdapter,
@@ -241,7 +241,7 @@ export class ChannelImpl<TState = Record<string, unknown>>
     };
   }
 
-  async post(message: Plan): Promise<PlanMessage>;
+  async post<T extends PostableObject>(message: T): Promise<T>;
   async post(
     message:
       | string
@@ -251,10 +251,10 @@ export class ChannelImpl<TState = Record<string, unknown>>
   ): Promise<SentMessage>;
   async post(
     message: string | PostableMessage | CardJSXElement
-  ): Promise<SentMessage | PlanMessage> {
-    // Handle Plan objects
-    if (isPlan(message)) {
-      return this.handlePlanPost(message);
+  ): Promise<SentMessage | PostableObject> {
+    if (isPostableObject(message)) {
+      await this.handlePostableObject(message);
+      return message;
     }
 
     // Handle AsyncIterable (streaming) — not supported at channel level,
@@ -283,18 +283,26 @@ export class ChannelImpl<TState = Record<string, unknown>>
     return this.postSingleMessage(postable);
   }
 
-  private async handlePlanPost(plan: Plan): Promise<PlanMessage> {
+  private async handlePostableObject(obj: PostableObject): Promise<void> {
     const adapter = this.adapter;
-
-    if (adapter.postPlan && adapter.editPlan) {
-      const raw = await adapter.postPlan(this.id, plan._toModel());
-      const threadIdForEdits = raw.threadId ?? this.id;
-      plan._bind(adapter, this.id, raw.id, threadIdForEdits);
+    if (obj.isSupported(adapter) && adapter.postObject) {
+      const raw = await adapter.postObject(
+        this.id,
+        obj.kind,
+        obj.getPostData()
+      );
+      obj.onPosted({
+        adapter,
+        messageId: raw.id,
+        threadId: raw.threadId ?? this.id,
+      });
     } else {
-      plan._bind(adapter, this.id, `plan_${crypto.randomUUID()}`, this.id);
+      obj.onPosted({
+        adapter,
+        messageId: `${obj.kind}_${crypto.randomUUID()}`,
+        threadId: this.id,
+      });
     }
-
-    return plan;
   }
 
   private async postSingleMessage(

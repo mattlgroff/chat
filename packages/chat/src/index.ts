@@ -11,7 +11,7 @@ export {
   type MessageData,
   type SerializedMessage,
 } from "./message";
-export { isPlan, Plan } from "./plan";
+export { isPostableObject, Plan } from "./plan";
 export { StreamingMarkdownRenderer } from "./streaming-markdown";
 export { type SerializedThread, ThreadImpl } from "./thread";
 
@@ -247,7 +247,6 @@ export type {
   ModalSubmitHandler,
   ModalUpdateResponse,
   PlanContent,
-  PlanMessage,
   PlanModel,
   PlanModelTask,
   PlanTask,
@@ -257,6 +256,8 @@ export type {
   PostableCard,
   PostableMarkdown,
   PostableMessage,
+  PostableObject,
+  PostableObjectContext,
   PostableRaw,
   PostEphemeralOptions,
   RawMessage,

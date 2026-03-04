@@ -8,7 +8,6 @@ import type { CardJSXElement } from "./jsx-runtime";
 import type { Logger, LogLevel } from "./logger";
 import type { Message } from "./message";
 import type { ModalElement } from "./modals";
-import type { Plan } from "./plan";
 
 // =============================================================================
 // Re-exports from extracted modules
@@ -127,13 +126,19 @@ export interface Adapter<TThreadId = unknown, TRawMessage = unknown> {
   ): Promise<RawMessage<TRawMessage>>;
 
   /**
-   * Optional: edit a previously posted plan message.
-   * If not implemented, plan helpers will no-op.
+   * Edit a previously posted object (Plan, Poll, etc.).
+   * If not implemented, object updates will throw PlanNotSupportedError.
+   *
+   * @param threadId - The thread containing the message
+   * @param messageId - The message ID to edit
+   * @param kind - The object kind (e.g., "plan")
+   * @param data - The object data (type depends on kind)
    */
-  editPlan?(
+  editObject?(
     threadId: string,
     messageId: string,
-    plan: PlanModel
+    kind: string,
+    data: unknown
   ): Promise<RawMessage<TRawMessage>>;
 
   /** Encode platform-specific data into a thread ID string */
@@ -300,12 +305,17 @@ export interface Adapter<TThreadId = unknown, TRawMessage = unknown> {
   ): Promise<RawMessage<TRawMessage>>;
 
   /**
-   * Optional: post a plan/tasks surface as a single message.
-   * If not implemented, plan helpers will no-op.
+   * Post a special object (Plan, Poll, etc.) as a single message.
+   * If not implemented, posting such objects will throw PlanNotSupportedError.
+   *
+   * @param threadId - The thread to post to
+   * @param kind - The object kind (e.g., "plan")
+   * @param data - The object data (type depends on kind)
    */
-  postPlan?(
+  postObject?(
     threadId: string,
-    plan: PlanModel
+    kind: string,
+    data: unknown
   ): Promise<RawMessage<TRawMessage>>;
 
   /** Remove a reaction from a message */
@@ -555,7 +565,7 @@ export interface Postable<
   /**
    * Post a message.
    */
-  post(message: Plan): Promise<PlanMessage>;
+  post<T extends PostableObject>(message: T): Promise<T>;
   post(
     message:
       | string
@@ -756,7 +766,7 @@ export interface Thread<TState = Record<string, unknown>, TRawMessage = unknown>
    * await plan.complete({ completeMessage: "Done!" });
    * ```
    */
-  post(message: Plan): Promise<PlanMessage>;
+  post<T extends PostableObject>(message: T): Promise<T>;
   post(
     message:
       | string
@@ -841,35 +851,42 @@ export interface Thread<TState = Record<string, unknown>, TRawMessage = unknown>
   unsubscribe(): Promise<void>;
 }
 
+// =============================================================================
+// Postable Objects
+// =============================================================================
+
+/**
+ * Context provided to a PostableObject after it has been posted.
+ */
+export interface PostableObjectContext {
+  adapter: Adapter;
+  messageId: string;
+  threadId: string;
+}
+
+export interface PostableObject {
+  /** Symbol identifying this as a postable object */
+  readonly $$typeof: symbol;
+
+  /** Get the data to send to the adapter */
+  getPostData(): unknown;
+
+  /** Check if the adapter supports this object type */
+  isSupported(adapter: Adapter): boolean;
+
+  /** The kind of object - used by adapters to dispatch */
+  readonly kind: string;
+
+  /** Called after successful posting to bind the object to the thread */
+  onPosted(context: PostableObjectContext): void;
+}
+
 export type PlanTaskStatus = "pending" | "in_progress" | "complete" | "error";
 
 export interface PlanTask {
   id: string;
   status: PlanTaskStatus;
   title: string;
-}
-
-export interface PlanMessage {
-  /** Add a task and set it in progress. */
-  addTask(options: AddTaskOptions): Promise<PlanTask | null>;
-  /** Complete the plan and mark the current task complete. */
-  complete(options: CompletePlanOptions): Promise<void>;
-  /** Returns the in-progress task, or the last task if none is in-progress. */
-  currentTask(): PlanTask | null;
-  /** The underlying message ID on the platform (or a synthetic ID if unsupported). */
-  id: string;
-
-  /** Reset the plan contents and overwrite the same message. */
-  reset(options: StartPlanOptions): Promise<PlanTask | null>;
-  /** All tasks. */
-  tasks(): PlanTask[];
-  /** Thread ID where the plan was posted. */
-  threadId: string;
-
-  /** Current plan title. */
-  title(): string;
-  /** Update the current task (typically output). */
-  updateTask(update?: UpdateTaskInput): Promise<PlanTask | null>;
 }
 
 export interface PlanModel {
@@ -1122,7 +1139,7 @@ export type AdapterPostableMessage =
 export type PostableMessage =
   | AdapterPostableMessage
   | AsyncIterable<string>
-  | Plan;
+  | PostableObject;
 
 export interface PostableRaw {
   /** File/image attachments */
