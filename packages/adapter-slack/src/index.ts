@@ -1203,11 +1203,12 @@ export class SlackAdapter implements Adapter<SlackThreadId, unknown> {
       return;
     }
 
-    // For DMs: top-level messages use empty threadTs (matches openDM subscriptions),
-    // thread replies use thread_ts for per-conversation isolation.
-    // For channels: always use thread_ts or ts for per-thread IDs.
+    // Always use thread_ts if present (reply in existing thread), otherwise fall
+    // back to ts (start a new thread under the incoming message).  Previously DMs
+    // used an empty threadTs which caused replies to post as top-level messages
+    // that Slack silently dropped or mis-routed.
     const isDM = event.channel_type === "im";
-    const threadTs = isDM ? event.thread_ts || "" : event.thread_ts || event.ts;
+    const threadTs = event.thread_ts || event.ts;
     const threadId = this.encodeThreadId({
       channel: event.channel,
       threadTs,
