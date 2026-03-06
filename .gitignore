@@ -1,8 +1,10 @@
 # Dependencies
 node_modules/
 
-# Build outputs
-dist/
+# Build outputs — sub-package dists are ignored, root dist is committed
+**/dist/
+!/dist/
+/dist/*.map
 .turbo/
 
 # IDE

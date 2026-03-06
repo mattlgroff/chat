@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "paths": {
+      "chat": ["./packages/chat/src/index.ts"],
+      "@chat-adapter/slack": ["./packages/adapter-slack/src/index.ts"],
+      "@chat-adapter/shared": ["./packages/adapter-shared/src/index.ts"],
+      "@chat-adapter/state-ioredis": ["./packages/state-ioredis/src/index.ts"]
+    }
+  },
+  "include": ["src", "packages/*/src"]
+}

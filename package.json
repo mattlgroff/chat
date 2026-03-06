@@ -1,18 +1,34 @@
 {
-  "name": "chat-sdk-monorepo",
-  "private": true,
+  "name": "chat-sdk",
+  "version": "4.16.2",
+  "description": "Unified chat abstraction for Slack, Teams, Google Chat, and Discord (CJS+ESM fork)",
   "type": "module",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/vercel/chat.git"
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./slack": {
+      "types": "./dist/slack.d.ts",
+      "import": "./dist/slack.js",
+      "require": "./dist/slack.cjs"
+    },
+    "./state-ioredis": {
+      "types": "./dist/state-ioredis.d.ts",
+      "import": "./dist/state-ioredis.js",
+      "require": "./dist/state-ioredis.cjs"
+    }
   },
-  "homepage": "https://github.com/vercel/chat#readme",
-  "bugs": {
-    "url": "https://github.com/vercel/chat/issues"
-  },
-  "license": "MIT",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "turbo build",
+    "build:root": "tsup",
     "build:validate": "SLACK_BOT_TOKEN=xoxb-mock SLACK_SIGNING_SECRET=mock TEAMS_APP_ID=mock TEAMS_APP_PASSWORD=mock TEAMS_APP_TENANT_ID=mock GOOGLE_CHAT_CREDENTIALS='{\"type\":\"service_account\",\"project_id\":\"mock\",\"private_key\":\"-----BEGIN RSA PRIVATE KEY-----\\nMOCK\\n-----END RSA PRIVATE KEY-----\",\"client_email\":\"mock@mock.iam.gserviceaccount.com\"}' REDIS_URL=redis://localhost:6379 RECORDING_ENABLED=false turbo build",
     "dev": "turbo dev",
     "test": "turbo test --filter='!example-nextjs-chat' --filter='!docs'",
@@ -22,13 +38,25 @@
     "validate": "pnpm knip && pnpm check && turbo typecheck && pnpm test && pnpm build:validate",
     "clean": "turbo clean && rm -rf node_modules",
     "check": "ultracite check",
-    "fix": "ultracite fix"
+    "fix": "ultracite fix",
+    "build:dts": "node scripts/copy-dts.mjs",
+    "prepublishOnly": "pnpm build && pnpm build:root && pnpm build:dts"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mattlgroff/chat.git"
+  },
+  "homepage": "https://github.com/mattlgroff/chat#readme",
+  "bugs": {
+    "url": "https://github.com/mattlgroff/chat/issues"
+  },
+  "license": "MIT",
   "devDependencies": {
     "@biomejs/biome": "^2.4.4",
     "@changesets/cli": "^2.29.8",
     "@vitest/coverage-v8": "^4.0.18",
     "knip": "^5.85.0",
+    "tsup": "^8.3.5",
     "turbo": "^2.8.12",
     "typescript": "^5.9.3",
     "ultracite": "7.2.4",
