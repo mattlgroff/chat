@@ -1,11 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: {
-    index: "src/index.ts",
-    slack: "src/slack.ts",
-    "state-ioredis": "src/state-ioredis.ts",
-  },
+  entry: ["src/index.ts"],
   format: ["esm", "cjs"],
   dts: false,
   clean: true,

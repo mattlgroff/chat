@@ -1,3 +1,4 @@
+// From: packages/chat/dist/index.d.ts
 import { WORKFLOW_SERIALIZE, WORKFLOW_DESERIALIZE } from '@workflow/serde';
 import { C as CardElement, M as ModalElement, a as ChatElement, b as CardChild, A as ActionsComponent, B as ButtonComponent, c as CardComponent, d as cardChildToFallbackText$1, e as CardLinkComponent, T as TextComponent, D as DividerComponent, F as FieldComponent, f as FieldsComponent, g as fromReactElement$1, I as ImageComponent, i as isCardElement$1, h as isJSX$1, L as LinkButtonComponent, S as SectionComponent, j as Table$2, t as toCardElement$1, k as toModalElement$1, l as fromReactModalElement$1, m as isModalElement$1, n as ModalComponent, R as RadioSelectComponent, o as SelectComponent, p as SelectOptionComponent, q as TextInputComponent } from './jsx-runtime-BJENDuXl.js';
 export { r as ActionsElement, s as ButtonElement, u as ButtonOptions, V as ButtonProps, v as ButtonStyle, W as CardJSXElement, X as CardJSXProps, Y as CardLinkProps, w as CardOptions, Z as CardProps, _ as ContainerProps, x as DividerElement, $ as DividerProps, y as FieldElement, a0 as FieldProps, z as FieldsElement, E as ImageElement, a1 as ImageProps, G as LinkButtonElement, H as LinkButtonOptions, a2 as LinkButtonProps, J as LinkElement, a8 as ModalChild, a9 as ModalOptions, a3 as ModalProps, aa as RadioSelectElement, ab as RadioSelectOptions, K as SectionElement, ac as SelectElement, ad as SelectOptionElement, a4 as SelectOptionProps, ae as SelectOptions, a5 as SelectProps, N as TableAlignment, O as TableElement, P as TableOptions, Q as TextElement, af as TextInputElement, ag as TextInputOptions, a6 as TextInputProps, a7 as TextProps, U as TextStyle } from './jsx-runtime-BJENDuXl.js';
@@ -2698,3 +2699,539 @@ declare const SelectOption: SelectOptionComponent;
 declare const TextInput: TextInputComponent;
 
 export { type ActionEvent, type ActionHandler, Actions, ActionsComponent, type Adapter, type AdapterPostableMessage, type AppHomeOpenedEvent, type AppHomeOpenedHandler, type AssistantContextChangedEvent, type AssistantContextChangedHandler, type AssistantThreadStartedEvent, type AssistantThreadStartedHandler, type Attachment, type Author, BaseFormatConverter, Button, ButtonComponent, Card, CardChild, CardComponent, CardElement, CardLink, CardLinkComponent, CardText, type Channel, ChannelImpl, type ChannelInfo, Chat, type ChatConfig, ChatElement, ChatError, type ChatInstance, ConsoleLogger, type CustomEmojiMap, DEFAULT_EMOJI_MAP, Divider, DividerComponent, type Emoji, type EmojiFormats, type EmojiMapConfig, EmojiResolver, type EmojiValue, type EphemeralMessage, type FetchDirection, type FetchOptions, type FetchResult, Field, FieldComponent, Fields, FieldsComponent, type FileUpload, type FormatConverter, type FormattedContent, Image, ImageComponent, LinkButton, LinkButtonComponent, type ListThreadsOptions, type ListThreadsResult, type Lock, LockError, type LogLevel, type Logger, type MarkdownConverter, type MarkdownTextChunk, type MemberJoinedChannelEvent, type MemberJoinedChannelHandler, type MentionHandler, Message, type MessageData, type MessageHandler, type MessageMetadata, Modal, type ModalCloseEvent, type ModalCloseHandler, type ModalCloseResponse, ModalComponent, ModalElement, type ModalErrorsResponse, type ModalPushResponse, type ModalResponse, type ModalSubmitEvent, type ModalSubmitHandler, type ModalUpdateResponse, NotImplementedError, type PlanUpdateChunk, type PostEphemeralOptions, type Postable, type PostableAst, type PostableCard, type PostableMarkdown, type PostableMessage, type PostableRaw, RadioSelect, RadioSelectComponent, RateLimitError, type RawMessage, type ReactionEvent, type ReactionHandler, Section, SectionComponent, Select, SelectComponent, SelectOption, SelectOptionComponent, type SentMessage, type SerializedChannel, type SerializedMessage, type SerializedThread, type SlashCommandEvent, type SlashCommandHandler, type StateAdapter, type StreamChunk, type StreamEvent, type StreamOptions, StreamingMarkdownRenderer, type SubscribedMessageHandler, THREAD_STATE_TTL_MS, Table, type TaskUpdateChunk, TextComponent, TextInput, TextInputComponent, type Thread, ThreadImpl, type ThreadInfo, type ThreadSummary, type WebhookOptions, type WellKnownEmoji, blockquote, cardChildToFallbackText, codeBlock, convertEmojiPlaceholders, createEmoji, defaultEmojiResolver, deriveChannelId, emoji, emphasis, fromFullStream, fromReactElement, fromReactModalElement, getEmoji, getNodeChildren, getNodeValue, inlineCode, isBlockquoteNode, isCardElement, isCodeNode, isDeleteNode, isEmphasisNode, isInlineCodeNode, isJSX, isLinkNode, isListItemNode, isListNode, isModalElement, isParagraphNode, isStrongNode, isTableCellNode, isTableNode, isTableRowNode, isTextNode, link, markdownToPlainText, paragraph, parseMarkdown, root, strikethrough, stringifyMarkdown, strong, tableElementToAscii, tableToAscii, text, toCardElement, toModalElement, toPlainText, walkAst };
+
+
+// From: packages/adapter-slack/dist/index.d.ts
+import { CardElement, BaseFormatConverter, AdapterPostableMessage, Root, Logger, Adapter, ChatInstance, WebhookOptions, RawMessage, EphemeralMessage, ModalElement, EmojiValue, StreamChunk, StreamOptions, FetchOptions, FetchResult, ThreadInfo, Message, ListThreadsOptions, ListThreadsResult, ChannelInfo, FormattedContent } from 'chat';
+
+/**
+ * Slack Block Kit converter for cross-platform cards.
+ *
+ * Converts CardElement to Slack Block Kit blocks.
+ * @see https://api.slack.com/block-kit
+ */
+
+interface SlackBlock {
+    block_id?: string;
+    type: string;
+    [key: string]: unknown;
+}
+/**
+ * Convert a CardElement to Slack Block Kit blocks.
+ */
+declare function cardToBlockKit(card: CardElement): SlackBlock[];
+/**
+ * Generate fallback text from a card element.
+ * Used when blocks aren't supported or for notifications.
+ */
+declare function cardToFallbackText(card: CardElement): string;
+
+interface EncryptedTokenData {
+    data: string;
+    iv: string;
+    tag: string;
+}
+declare function decodeKey(rawKey: string): Buffer;
+
+/**
+ * Slack-specific format conversion using AST-based parsing.
+ *
+ * Slack uses "mrkdwn" format which is similar but not identical to markdown:
+ * - Bold: *text* (not **text**)
+ * - Italic: _text_ (same)
+ * - Strikethrough: ~text~ (not ~~text~~)
+ * - Links: <url|text> (not [text](url))
+ * - User mentions: <@U123>
+ * - Channel mentions: <#C123|name>
+ */
+
+declare class SlackFormatConverter extends BaseFormatConverter {
+    /**
+     * Convert @mentions to Slack format in plain text.
+     * @name → <@name>
+     */
+    private convertMentionsToSlack;
+    /**
+     * Override renderPostable to convert @mentions in plain strings.
+     */
+    renderPostable(message: AdapterPostableMessage): string;
+    /**
+     * Render an AST to Slack mrkdwn format.
+     */
+    fromAst(ast: Root): string;
+    /**
+     * Parse Slack mrkdwn into an AST.
+     */
+    toAst(mrkdwn: string): Root;
+    private nodeToMrkdwn;
+}
+
+interface SlackAdapterConfig {
+    /** Bot token (xoxb-...). Required for single-workspace mode. Omit for multi-workspace. */
+    botToken?: string;
+    /** Bot user ID (will be fetched if not provided) */
+    botUserId?: string;
+    /** Slack app client ID (required for OAuth / multi-workspace) */
+    clientId?: string;
+    /** Slack app client secret (required for OAuth / multi-workspace) */
+    clientSecret?: string;
+    /**
+     * Base64-encoded 32-byte AES-256-GCM encryption key.
+     * If provided, bot tokens stored via setInstallation() will be encrypted at rest.
+     */
+    encryptionKey?: string;
+    /**
+     * Prefix for the state key used to store workspace installations.
+     * Defaults to `slack:installation`. The full key will be `{prefix}:{teamId}`.
+     */
+    installationKeyPrefix?: string;
+    /** Logger instance for error reporting. Defaults to ConsoleLogger. */
+    logger?: Logger;
+    /** Signing secret for webhook verification. Defaults to SLACK_SIGNING_SECRET env var. */
+    signingSecret?: string;
+    /** Override bot username (optional) */
+    userName?: string;
+}
+/** Data stored per Slack workspace installation */
+interface SlackInstallation {
+    botToken: string;
+    botUserId?: string;
+    teamName?: string;
+}
+/** Slack-specific thread ID data */
+interface SlackThreadId {
+    channel: string;
+    threadTs: string;
+}
+/** Slack event payload (raw message format) */
+interface SlackEvent {
+    bot_id?: string;
+    channel?: string;
+    /** Channel type: "channel", "group", "mpim", or "im" (DM) */
+    channel_type?: string;
+    edited?: {
+        ts: string;
+    };
+    files?: Array<{
+        id?: string;
+        mimetype?: string;
+        url_private?: string;
+        name?: string;
+        size?: number;
+        original_w?: number;
+        original_h?: number;
+    }>;
+    /** Timestamp of the latest reply (present on thread parent messages) */
+    latest_reply?: string;
+    /** Number of replies in the thread (present on thread parent messages) */
+    reply_count?: number;
+    subtype?: string;
+    team?: string;
+    team_id?: string;
+    text?: string;
+    thread_ts?: string;
+    ts?: string;
+    type: string;
+    user?: string;
+    username?: string;
+}
+/** Slack reaction event payload */
+interface SlackReactionEvent {
+    event_ts: string;
+    item: {
+        type: string;
+        channel: string;
+        ts: string;
+    };
+    item_user?: string;
+    reaction: string;
+    type: "reaction_added" | "reaction_removed";
+    user: string;
+}
+declare class SlackAdapter implements Adapter<SlackThreadId, unknown> {
+    readonly name = "slack";
+    readonly userName: string;
+    private readonly client;
+    private readonly signingSecret;
+    private readonly defaultBotToken;
+    private chat;
+    private readonly logger;
+    private _botUserId;
+    private _botId;
+    private readonly formatConverter;
+    private static USER_CACHE_TTL_MS;
+    private readonly clientId;
+    private readonly clientSecret;
+    private readonly encryptionKey;
+    private readonly installationKeyPrefix;
+    private readonly requestContext;
+    /** Bot user ID (e.g., U_BOT_123) used for mention detection */
+    get botUserId(): string | undefined;
+    constructor(config?: SlackAdapterConfig);
+    /**
+     * Get the current bot token for API calls.
+     * Checks request context (multi-workspace) → default token (single-workspace) → throws.
+     */
+    private getToken;
+    /**
+     * Add the current token to API call options.
+     * Workaround for Slack WebClient types not including `token` in per-method args.
+     */
+    private withToken;
+    initialize(chat: ChatInstance): Promise<void>;
+    private installationKey;
+    /**
+     * Save a Slack workspace installation.
+     * Call this from your OAuth callback route after a successful installation.
+     */
+    setInstallation(teamId: string, installation: SlackInstallation): Promise<void>;
+    /**
+     * Retrieve a Slack workspace installation.
+     */
+    getInstallation(teamId: string): Promise<SlackInstallation | null>;
+    /**
+     * Handle the Slack OAuth V2 callback.
+     * Accepts the incoming request, extracts the authorization code,
+     * exchanges it for tokens, and saves the installation.
+     */
+    handleOAuthCallback(request: Request): Promise<{
+        teamId: string;
+        installation: SlackInstallation;
+    }>;
+    /**
+     * Remove a Slack workspace installation.
+     */
+    deleteInstallation(teamId: string): Promise<void>;
+    /**
+     * Run a function with a specific bot token in context.
+     * Use this for operations outside webhook handling (cron jobs, workflows).
+     */
+    withBotToken<T>(token: string, fn: () => T): T;
+    /**
+     * Resolve the bot token for a team from the state adapter.
+     */
+    private resolveTokenForTeam;
+    /**
+     * Extract team_id from an interactive payload (form-urlencoded).
+     */
+    private extractTeamIdFromInteractive;
+    /**
+     * Look up user info from Slack API with caching via state adapter.
+     * Returns display name and real name, or falls back to user ID.
+     */
+    private lookupUser;
+    handleWebhook(request: Request, options?: WebhookOptions): Promise<Response>;
+    /** Extract and dispatch events from a validated payload */
+    private processEventPayload;
+    /**
+     * Handle Slack interactive payloads (button clicks, view submissions, etc.).
+     * These are sent as form-urlencoded with a `payload` JSON field.
+     */
+    private handleInteractivePayload;
+    /**
+     * Handle Slack slash command payloads.
+     * Slash commands are sent as form-urlencoded with command, text, user_id, channel_id, etc.
+     */
+    private handleSlashCommand;
+    /**
+     * Handle block_actions payload (button clicks in Block Kit).
+     */
+    private handleBlockActions;
+    private handleViewSubmission;
+    private handleViewClosed;
+    private modalResponseToSlack;
+    private convertModalJSX;
+    private verifySignature;
+    /**
+     * Handle message events from Slack.
+     * Bot message filtering (isMe) is handled centrally by the Chat class.
+     */
+    private handleMessageEvent;
+    /**
+     * Handle reaction events from Slack (reaction_added, reaction_removed).
+     */
+    private handleReactionEvent;
+    /**
+     * Handle assistant_thread_started events from Slack's Assistants API.
+     * Fires when a user opens a new assistant thread (DM with the bot).
+     */
+    private handleAssistantThreadStarted;
+    /**
+     * Handle assistant_thread_context_changed events from Slack's Assistants API.
+     * Fires when a user navigates to a different channel with the assistant panel open.
+     */
+    private handleAssistantContextChanged;
+    /**
+     * Handle app_home_opened events from Slack.
+     * Fires when a user opens the bot's Home tab.
+     */
+    private handleAppHomeOpened;
+    /**
+     * Handle member_joined_channel events from Slack.
+     * Fires when a user (including the bot) joins a channel.
+     */
+    private handleMemberJoinedChannel;
+    /**
+     * Publish a Home tab view for a user.
+     * Slack API: views.publish
+     */
+    publishHomeView(userId: string, view: Record<string, unknown>): Promise<void>;
+    /**
+     * Set suggested prompts for an assistant thread.
+     * Slack Assistants API: assistant.threads.setSuggestedPrompts
+     */
+    setSuggestedPrompts(channelId: string, threadTs: string, prompts: Array<{
+        title: string;
+        message: string;
+    }>, title?: string): Promise<void>;
+    /**
+     * Set status/thinking indicator for an assistant thread.
+     * Slack Assistants API: assistant.threads.setStatus
+     */
+    setAssistantStatus(channelId: string, threadTs: string, status: string, loadingMessages?: string[]): Promise<void>;
+    /**
+     * Set title for an assistant thread (shown in History tab).
+     * Slack Assistants API: assistant.threads.setTitle
+     */
+    setAssistantTitle(channelId: string, threadTs: string, title: string): Promise<void>;
+    /**
+     * Resolve inline user mentions in Slack mrkdwn text.
+     * Converts <@U123> to <@U123|displayName> so that toAst/extractPlainText
+     * renders them as @displayName instead of @U123.
+     *
+     * @param skipSelfMention - When true, skips the bot's own user ID so that
+     *   mention detection (which looks for @botUserId in the text) continues to
+     *   work. Set to false when parsing historical/channel messages where mention
+     *   detection doesn't apply.
+     */
+    private resolveInlineMentions;
+    private parseSlackMessage;
+    /**
+     * Create an Attachment object from a Slack file.
+     * Includes a fetchData method that uses the bot token for auth.
+     */
+    private createAttachment;
+    postMessage(threadId: string, message: AdapterPostableMessage): Promise<RawMessage<unknown>>;
+    postEphemeral(threadId: string, userId: string, message: AdapterPostableMessage): Promise<EphemeralMessage>;
+    openModal(triggerId: string, modal: ModalElement, contextId?: string): Promise<{
+        viewId: string;
+    }>;
+    updateModal(viewId: string, modal: ModalElement): Promise<{
+        viewId: string;
+    }>;
+    /**
+     * Upload files to Slack and share them to a channel.
+     * Returns the file IDs of uploaded files.
+     */
+    private uploadFiles;
+    editMessage(threadId: string, messageId: string, message: AdapterPostableMessage): Promise<RawMessage<unknown>>;
+    deleteMessage(threadId: string, messageId: string): Promise<void>;
+    addReaction(threadId: string, messageId: string, emoji: EmojiValue | string): Promise<void>;
+    removeReaction(threadId: string, messageId: string, emoji: EmojiValue | string): Promise<void>;
+    /**
+     * Show typing indicator with optional custom status.
+     *
+     * When status is provided, uses Slack's assistant.threads.setStatus API
+     * to show custom loading text (requires Agents & AI Apps feature and assistant:write scope).
+     * The status auto-clears when a message is posted to the thread.
+     *
+     * When status is not provided, defaults to "Typing..." with default loading messages.
+     *
+     * @param threadId - The thread to show the indicator in
+     * @param status - Optional custom status message (e.g., "Searching documents...")
+     */
+    startTyping(threadId: string, status?: string): Promise<void>;
+    /**
+     * Stream a message using Slack's native streaming API.
+     *
+     * Consumes an async iterable of text chunks and/or structured StreamChunk
+     * objects (task_update, plan_update, markdown_text) and streams them to Slack.
+     *
+     * Plain strings are rendered through StreamingMarkdownRenderer for safe
+     * incremental markdown. StreamChunk objects are passed directly to Slack's
+     * streaming API as chunk payloads, enabling native task progress cards
+     * and plan displays in the Slack AI Assistant UI.
+     *
+     * Requires `recipientUserId` and `recipientTeamId` in options.
+     */
+    stream(threadId: string, textStream: AsyncIterable<string | StreamChunk>, options?: StreamOptions): Promise<RawMessage<unknown>>;
+    /**
+     * Open a direct message conversation with a user.
+     * Returns a thread ID that can be used to post messages.
+     */
+    openDM(userId: string): Promise<string>;
+    fetchMessages(threadId: string, options?: FetchOptions): Promise<FetchResult<unknown>>;
+    /**
+     * Fetch messages in forward direction (oldest first, efficient).
+     * Uses native Slack cursor pagination.
+     */
+    private fetchMessagesForward;
+    /**
+     * Fetch messages in backward direction (most recent first).
+     *
+     * Slack's API returns oldest-first, so for backward direction we:
+     * 1. Use `latest` parameter to fetch messages before a timestamp (cursor)
+     * 2. Fetch up to 1000 messages (API limit) and take the last N
+     * 3. Return messages in chronological order (oldest first within the page)
+     *
+     * Note: For very large threads (>1000 messages), the first backward call
+     * may not return the absolute most recent messages. This is a Slack API limitation.
+     */
+    private fetchMessagesBackward;
+    fetchThread(threadId: string): Promise<ThreadInfo>;
+    /**
+     * Fetch a single message by ID (timestamp).
+     */
+    fetchMessage(threadId: string, messageId: string): Promise<Message<unknown> | null>;
+    encodeThreadId(platformData: SlackThreadId): string;
+    /**
+     * Check if a thread is a direct message conversation.
+     * Slack DM channel IDs start with 'D'.
+     */
+    isDM(threadId: string): boolean;
+    decodeThreadId(threadId: string): SlackThreadId;
+    parseMessage(raw: SlackEvent): Message<unknown>;
+    /**
+     * Synchronous message parsing without user lookup.
+     * Used for parseMessage interface - falls back to user ID for username.
+     */
+    private parseSlackMessageSync;
+    /**
+     * Derive channel ID from a Slack thread ID.
+     * Slack thread IDs are "slack:CHANNEL:THREAD_TS", channel ID is "slack:CHANNEL".
+     */
+    channelIdFromThreadId(threadId: string): string;
+    /**
+     * Fetch channel-level messages (conversations.history, not thread replies).
+     */
+    fetchChannelMessages(channelId: string, options?: FetchOptions): Promise<FetchResult<unknown>>;
+    private fetchChannelMessagesForward;
+    private fetchChannelMessagesBackward;
+    /**
+     * List threads in a Slack channel.
+     * Fetches channel history and filters for messages with replies.
+     */
+    listThreads(channelId: string, options?: ListThreadsOptions): Promise<ListThreadsResult<unknown>>;
+    /**
+     * Fetch Slack channel info/metadata.
+     */
+    fetchChannelInfo(channelId: string): Promise<ChannelInfo>;
+    /**
+     * Post a top-level message to a channel (not in a thread).
+     */
+    postChannelMessage(channelId: string, message: AdapterPostableMessage): Promise<RawMessage<unknown>>;
+    renderFormatted(content: FormattedContent): string;
+    /**
+     * Check if a Slack event is from this bot.
+     *
+     * Slack messages can come from:
+     * - User messages: have `user` field (U_xxx format)
+     * - Bot messages: have `bot_id` field (B_xxx format)
+     *
+     * We check both because:
+     * - _botUserId is the user ID (U_xxx) - matches event.user
+     * - _botId is the bot ID (B_xxx) - matches event.bot_id
+     */
+    private isMessageFromSelf;
+    private handleSlackError;
+    /**
+     * Encode response_url and userId into messageId for ephemeral messages.
+     * This allows edit/delete operations to work via response_url.
+     */
+    private encodeEphemeralMessageId;
+    /**
+     * Decode ephemeral messageId to extract messageTs, responseUrl, and userId.
+     * Returns null if the messageId is not an ephemeral encoding.
+     */
+    private decodeEphemeralMessageId;
+    /**
+     * Send a request to Slack's response_url to modify an ephemeral message.
+     */
+    private sendToResponseUrl;
+}
+declare function createSlackAdapter(config?: SlackAdapterConfig): SlackAdapter;
+
+export { type EncryptedTokenData, SlackAdapter, type SlackAdapterConfig, type SlackEvent, SlackFormatConverter, type SlackInstallation, SlackFormatConverter as SlackMarkdownConverter, type SlackReactionEvent, type SlackThreadId, cardToBlockKit, cardToFallbackText, createSlackAdapter, decodeKey };
+
+
+// From: packages/state-ioredis/dist/index.d.ts
+import { Logger, StateAdapter, Lock } from 'chat';
+import Redis from 'ioredis';
+
+interface IoRedisStateAdapterOptions {
+    /** Key prefix for all Redis keys (default: "chat-sdk") */
+    keyPrefix?: string;
+    /** Logger instance for error reporting */
+    logger: Logger;
+    /** Redis connection URL (e.g., redis://localhost:6379) */
+    url: string;
+}
+interface IoRedisStateClientOptions {
+    /** Existing ioredis client instance */
+    client: Redis;
+    /** Key prefix for all Redis keys (default: "chat-sdk") */
+    keyPrefix?: string;
+    /** Logger instance for error reporting */
+    logger: Logger;
+}
+/**
+ * Redis state adapter using ioredis for production use.
+ *
+ * Provides persistent subscriptions and distributed locking
+ * across multiple server instances.
+ *
+ * @example
+ * ```typescript
+ * // With URL
+ * const state = createIoRedisState({ url: process.env.REDIS_URL });
+ *
+ * // With existing client
+ * const client = new Redis(process.env.REDIS_URL);
+ * const state = createIoRedisState({ client });
+ * ```
+ */
+declare class IoRedisStateAdapter implements StateAdapter {
+    private readonly client;
+    private readonly keyPrefix;
+    private readonly logger;
+    private connected;
+    private connectPromise;
+    private readonly ownsClient;
+    constructor(options: IoRedisStateAdapterOptions | IoRedisStateClientOptions);
+    private key;
+    private subscriptionsSetKey;
+    connect(): Promise<void>;
+    disconnect(): Promise<void>;
+    subscribe(threadId: string): Promise<void>;
+    unsubscribe(threadId: string): Promise<void>;
+    isSubscribed(threadId: string): Promise<boolean>;
+    acquireLock(threadId: string, ttlMs: number): Promise<Lock | null>;
+    releaseLock(lock: Lock): Promise<void>;
+    extendLock(lock: Lock, ttlMs: number): Promise<boolean>;
+    get<T = unknown>(key: string): Promise<T | null>;
+    set<T = unknown>(key: string, value: T, ttlMs?: number): Promise<void>;
+    setIfNotExists(key: string, value: unknown, ttlMs?: number): Promise<boolean>;
+    delete(key: string): Promise<void>;
+    private ensureConnected;
+    /**
+     * Get the underlying ioredis client for advanced usage.
+     */
+    getClient(): Redis;
+}
+/**
+ * Create an ioredis state adapter.
+ *
+ * @example
+ * ```typescript
+ * // With URL
+ * const state = createIoRedisState({ url: process.env.REDIS_URL });
+ *
+ * // With existing client
+ * import Redis from "ioredis";
+ * const client = new Redis(process.env.REDIS_URL);
+ * const state = createIoRedisState({ client });
+ * ```
+ */
+declare function createIoRedisState(options: IoRedisStateAdapterOptions | IoRedisStateClientOptions): IoRedisStateAdapter;
+
+export { IoRedisStateAdapter, type IoRedisStateAdapterOptions, type IoRedisStateClientOptions, createIoRedisState };

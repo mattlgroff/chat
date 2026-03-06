@@ -11,16 +11,6 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
-    },
-    "./slack": {
-      "types": "./dist/slack.d.ts",
-      "import": "./dist/slack.js",
-      "require": "./dist/slack.cjs"
-    },
-    "./state-ioredis": {
-      "types": "./dist/state-ioredis.d.ts",
-      "import": "./dist/state-ioredis.js",
-      "require": "./dist/state-ioredis.cjs"
     }
   },
   "files": [

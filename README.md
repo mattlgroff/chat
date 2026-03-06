@@ -1,41 +1,86 @@
-# Chat SDK
+# chat-sdk
 
-[![npm version](https://img.shields.io/npm/v/chat)](https://www.npmjs.com/package/chat)
-[![npm downloads](https://img.shields.io/npm/dm/chat)](https://www.npmjs.com/package/chat)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+**A CJS+ESM fork of [vercel/chat](https://github.com/vercel/chat) — the unified chat abstraction for Slack, Teams, Google Chat, and Discord.**
 
-A unified TypeScript SDK for building chat bots across Slack, Microsoft Teams, Google Chat, Discord, Telegram, GitHub, and Linear. Write your bot logic once, deploy everywhere.
+## Why We Forked
 
-## Installation
+The upstream `vercel/chat` SDK is ESM-only. Our backend runs on NestJS with webpack, which compiles to CommonJS. This forced us to use fragile runtime hacks (`new Function("return import(…)")`) to dynamically import the SDK, and we had to maintain a 1,100-line duplicated type file because TypeScript couldn't resolve types from ESM-only packages in our CJS build.
 
-```bash
-npm install chat
+On top of that, the upstream SDK has two bugs that affect our Slack DM integration:
+
+1. **`invalid_thread_ts` in DMs** — Top-level DM messages encode `threadTs` as `""` (empty string). When posting replies, this empty string gets passed to the Slack API as `thread_ts: ""` instead of `undefined`, causing `invalid_thread_ts` errors. ([vercel/chat#171](https://github.com/vercel/chat/issues/171))
+
+2. **`file_share` subtype dropped** — The message handler originally rejected all subtypes except `bot_message`, silently dropping file uploads. *(Fixed in upstream HEAD but not yet released at the time of forking.)*
+
+## What Changed
+
+### Single-package barrel
+
+The upstream repo is a pnpm monorepo with separate packages (`chat`, `@chat-adapter/slack`, `@chat-adapter/shared`, `@chat-adapter/state-ioredis`). We bundle the three packages we use into a **single installable package** via a root-level `src/index.ts` barrel that re-exports everything:
+
+```ts
+// All exports from chat, @chat-adapter/slack, and @chat-adapter/state-ioredis
+import { Chat, emoji, createSlackAdapter, createIoRedisState } from 'chat-sdk';
 ```
 
-Install adapters for your platforms:
+This means `npm install github:mattlgroff/chat` just works — no monorepo tooling, no subpath exports, no module resolution headaches.
+
+### CJS + ESM dual output
+
+Every sub-package's `tsup.config.ts` changed from `format: ["esm"]` to `format: ["esm", "cjs"]`, and `package.json` exports include both `"import"` and `"require"` conditions. The root barrel also builds to both formats.
+
+### Bug fixes (adapter-slack)
+
+All `thread_ts: threadTs` calls in `postMessage`, `postEphemeral`, and `stream` methods are now guarded with `|| undefined` to prevent empty-string thread timestamps from reaching the Slack API.
+
+## Merging Upstream Changes
+
+The sub-packages are untouched structurally — our changes are:
+
+- **`packages/*/tsup.config.ts`** — added `"cjs"` to format array (1-line diff each)
+- **`packages/*/package.json`** — added `"require"` export and updated `"main"` (2-3 line diff each)
+- **`packages/adapter-slack/src/index.ts`** — `thread_ts` guards (7 lines changed)
+- **Root-level additions** — `src/`, `dist/`, `scripts/`, `tsup.config.ts`, `tsconfig.json` (new files, won't conflict)
+
+To merge upstream:
 
 ```bash
-npm install @chat-adapter/slack @chat-adapter/teams @chat-adapter/gchat @chat-adapter/discord @chat-adapter/telegram
+git remote add upstream https://github.com/vercel/chat.git
+git fetch upstream
+git merge upstream/main
+# Resolve any conflicts in the sub-package files above
+# Then rebuild:
+pnpm install
+pnpm build          # builds sub-packages via turbo
+pnpm build:root     # bundles root barrel (CJS+ESM)
+pnpm build:dts      # copies type declarations from sub-packages
+git add dist/ && git commit
+```
+
+Since our sub-package changes are minimal (format + exports + the thread_ts guard), upstream merges should be clean unless they modify the exact same lines.
+
+## Install
+
+```bash
+npm install github:mattlgroff/chat
 ```
 
 ## Usage
 
 ```typescript
-import { Chat } from "chat";
-import { createSlackAdapter } from "@chat-adapter/slack";
-import { createRedisState } from "@chat-adapter/state-redis";
+import { Chat, createSlackAdapter, createIoRedisState, emoji } from 'chat-sdk';
 
 const bot = new Chat({
-  userName: "mybot",
+  userName: 'mybot',
   adapters: {
-    slack: createSlackAdapter(),
+    slack: createSlackAdapter({ botToken, signingSecret }),
   },
-  state: createRedisState(),
+  state: createIoRedisState({ client: redisClient }),
 });
 
-bot.onNewMention(async (thread) => {
+bot.onNewMention(async (thread, message) => {
   await thread.subscribe();
-  await thread.post("Hello! I'm listening to this thread.");
+  await thread.post('Hello! I heard you.');
 });
 
 bot.onSubscribedMessage(async (thread, message) => {
@@ -43,65 +88,17 @@ bot.onSubscribedMessage(async (thread, message) => {
 });
 ```
 
-See the [Getting Started guide](https://chat-sdk.dev/docs/getting-started) for a full walkthrough.
-
-## Supported platforms
-
-| Platform | Package | Mentions | Reactions | Cards | Modals | Streaming | DMs |
-|----------|---------|----------|-----------|-------|--------|-----------|-----|
-| Slack | `@chat-adapter/slack` | Yes | Yes | Yes | Yes | Native | Yes |
-| Microsoft Teams | `@chat-adapter/teams` | Yes | Read-only | Yes | No | Post+Edit | Yes |
-| Google Chat | `@chat-adapter/gchat` | Yes | Yes | Yes | No | Post+Edit | Yes |
-| Discord | `@chat-adapter/discord` | Yes | Yes | Yes | No | Post+Edit | Yes |
-| Telegram | `@chat-adapter/telegram` | Yes | Yes | Partial | No | Post+Edit | Yes |
-| GitHub | `@chat-adapter/github` | Yes | Yes | No | No | No | No |
-| Linear | `@chat-adapter/linear` | Yes | Yes | No | No | No | No |
-
-## Features
-
-- [**Event handlers**](https://chat-sdk.dev/docs/usage) — mentions, messages, reactions, button clicks, slash commands, modals
-- [**AI streaming**](https://chat-sdk.dev/docs/streaming) — stream LLM responses with native Slack streaming and post+edit fallback
-- [**Cards**](https://chat-sdk.dev/docs/cards) — JSX-based interactive cards (Block Kit, Adaptive Cards, Google Chat Cards)
-- [**Actions**](https://chat-sdk.dev/docs/actions) — handle button clicks and dropdown selections
-- [**Modals**](https://chat-sdk.dev/docs/modals) — form dialogs with text inputs, dropdowns, and validation
-- [**Slash commands**](https://chat-sdk.dev/docs/slash-commands) — handle `/command` invocations
-- [**Emoji**](https://chat-sdk.dev/docs/emoji) — type-safe, cross-platform emoji with custom emoji support
-- [**File uploads**](https://chat-sdk.dev/docs/files) — send and receive file attachments
-- [**Direct messages**](https://chat-sdk.dev/docs/direct-messages) — initiate DMs programmatically
-- [**Ephemeral messages**](https://chat-sdk.dev/docs/ephemeral-messages) — user-only visible messages with DM fallback
-
-## Packages
-
-| Package | Description |
-|---------|-------------|
-| `chat` | Core SDK with `Chat` class, types, JSX runtime, and utilities |
-| `@chat-adapter/slack` | [Slack adapter](https://chat-sdk.dev/docs/adapters/slack) |
-| `@chat-adapter/teams` | [Teams adapter](https://chat-sdk.dev/docs/adapters/teams) |
-| `@chat-adapter/gchat` | [Google Chat adapter](https://chat-sdk.dev/docs/adapters/gchat) |
-| `@chat-adapter/discord` | [Discord adapter](https://chat-sdk.dev/docs/adapters/discord) |
-| `@chat-adapter/telegram` | [Telegram adapter](https://chat-sdk.dev/docs/adapters/telegram) |
-| `@chat-adapter/github` | [GitHub adapter](https://chat-sdk.dev/docs/adapters/github) |
-| `@chat-adapter/linear` | [Linear adapter](https://chat-sdk.dev/docs/adapters/linear) |
-| `@chat-adapter/state-redis` | [Redis state adapter](https://chat-sdk.dev/docs/state/redis) (production) |
-| `@chat-adapter/state-ioredis` | [ioredis state adapter](https://chat-sdk.dev/docs/state/ioredis) (alternative) |
-| `@chat-adapter/state-memory` | [In-memory state adapter](https://chat-sdk.dev/docs/state/memory) (development) |
-
-## AI coding agent support
-
-If you use an AI coding agent like [Claude Code](https://docs.anthropic.com/en/docs/claude-code), you can teach it about Chat SDK:
+## Build (for maintainers)
 
 ```bash
-npx skills add vercel/chat
+pnpm install
+pnpm build           # sub-packages (turbo)
+pnpm build:root      # root barrel
+pnpm build:dts       # type declarations
 ```
 
-## Documentation
-
-Full documentation is available at [chat-sdk.dev/docs](https://chat-sdk.dev/docs).
-
-## Contributing
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and the release process.
+The `dist/` directory is committed so consumers can install directly from GitHub without needing to build.
 
 ## License
 
-MIT
+MIT — same as [upstream](https://github.com/vercel/chat).
