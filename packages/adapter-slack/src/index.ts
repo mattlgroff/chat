@@ -1676,14 +1676,18 @@ export class SlackAdapter implements Adapter<SlackThreadId, unknown> {
     threadId: string,
     message: AdapterPostableMessage
   ): Promise<RawMessage<unknown>> {
-    const { channel, threadTs } = this.decodeThreadId(threadId);
+    const { channel, threadTs: rawThreadTs } = this.decodeThreadId(threadId);
+    // In DMs, skip thread_ts so replies appear as normal top-level DM messages
+    // instead of being buried in a thread within the DM conversation.
+    const isDM = channel.startsWith("D");
+    const threadTs = isDM ? undefined : rawThreadTs || undefined;
 
     try {
       // Check for files to upload
       const files = extractFiles(message);
       if (files.length > 0) {
         // Upload files first (they're shared to the channel automatically)
-        await this.uploadFiles(files, channel, threadTs || undefined);
+        await this.uploadFiles(files, channel, threadTs);
 
         // If message only has files (no text/card), return early
         const hasText =
@@ -1722,7 +1726,7 @@ export class SlackAdapter implements Adapter<SlackThreadId, unknown> {
         const result = await this.client.chat.postMessage(
           this.withToken({
             channel,
-            thread_ts: threadTs || undefined,
+            thread_ts: threadTs,
             text: fallbackText, // Fallback for notifications
             blocks,
             unfurl_links: false,
@@ -1757,7 +1761,7 @@ export class SlackAdapter implements Adapter<SlackThreadId, unknown> {
       const result = await this.client.chat.postMessage(
         this.withToken({
           channel,
-          thread_ts: threadTs || undefined,
+          thread_ts: threadTs,
           text,
           unfurl_links: false,
           unfurl_media: false,
