@@ -1721,7 +1721,7 @@ export class SlackAdapter implements Adapter<SlackThreadId, unknown> {
         const result = await this.client.chat.postMessage(
           this.withToken({
             channel,
-            thread_ts: threadTs,
+            thread_ts: threadTs || undefined,
             text: fallbackText, // Fallback for notifications
             blocks,
             unfurl_links: false,
@@ -1756,7 +1756,7 @@ export class SlackAdapter implements Adapter<SlackThreadId, unknown> {
       const result = await this.client.chat.postMessage(
         this.withToken({
           channel,
-          thread_ts: threadTs,
+          thread_ts: threadTs || undefined,
           text,
           unfurl_links: false,
           unfurl_media: false,
@@ -2238,15 +2238,17 @@ export class SlackAdapter implements Adapter<SlackThreadId, unknown> {
     this.logger.debug("Slack: starting stream", { channel, threadTs });
 
     const token = this.getToken();
-    const streamer = this.client.chatStream({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- thread_ts typed as required string but empty string is invalid for DMs
+    const streamArgs: any = {
       channel,
-      thread_ts: threadTs,
+      thread_ts: threadTs || undefined,
       recipient_user_id: options.recipientUserId,
       recipient_team_id: options.recipientTeamId,
       ...(options.taskDisplayMode && {
         task_display_mode: options.taskDisplayMode,
       }),
-    });
+    };
+    const streamer = this.client.chatStream(streamArgs);
 
     let first = true;
     let lastAppended = "";
