@@ -1682,6 +1682,21 @@ export class SlackAdapter implements Adapter<SlackThreadId, unknown> {
     const isDM = channel.startsWith("D");
     const threadTs = isDM ? undefined : rawThreadTs || undefined;
 
+    // For DMs, ensure the conversation is open before posting.
+    // Slack can silently drop messages to inactive DM channels.
+    if (isDM) {
+      this.logger.debug("Slack API: conversations.open (DM pre-check)", {
+        channel,
+      });
+      const openResult = await this.client.conversations.open(
+        this.withToken({ channel })
+      );
+      this.logger.debug("Slack API: conversations.open response", {
+        ok: openResult.ok,
+        channelId: openResult.channel?.id,
+      });
+    }
+
     try {
       // Check for files to upload
       const files = extractFiles(message);
