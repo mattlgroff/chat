@@ -39,7 +39,7 @@ describe("Chat", () => {
 
     // Trigger initialization by calling webhooks
     await chat.webhooks.slack(
-      new Request("http://test.com", { method: "POST" })
+      new Request("http://test.com", { method: "POST" }),
     );
   });
 
@@ -65,7 +65,7 @@ describe("Chat", () => {
     });
 
     await customChat.webhooks.slack(
-      new Request("http://test.com", { method: "POST" })
+      new Request("http://test.com", { method: "POST" }),
     );
 
     // Use a mention handler to exercise the full Chat → Thread pipeline
@@ -82,17 +82,17 @@ describe("Chat", () => {
     await customChat.handleIncomingMessage(
       mockAdapter,
       "slack:C123:1234.5678",
-      message
+      message,
     );
 
     expect(mockAdapter.postMessage).not.toHaveBeenCalledWith(
       "slack:C123:1234.5678",
-      "..."
+      "...",
     );
     expect(mockAdapter.editMessage).toHaveBeenLastCalledWith(
       "slack:C123:1234.5678",
       "msg-1",
-      { markdown: "Hi" }
+      { markdown: "Hi" },
     );
   });
 
@@ -106,7 +106,7 @@ describe("Chat", () => {
     await chat.handleIncomingMessage(
       mockAdapter,
       "slack:C123:1234.5678",
-      message
+      message,
     );
 
     expect(handler).toHaveBeenCalled();
@@ -129,11 +129,71 @@ describe("Chat", () => {
     await chat.handleIncomingMessage(
       mockAdapter,
       "slack:C123:1234.5678",
-      message
+      message,
     );
 
     expect(subscribedHandler).toHaveBeenCalled();
     expect(mentionHandler).not.toHaveBeenCalled();
+  });
+
+  it("hydrates recentMessages before running subscribed handlers", async () => {
+    await mockState.subscribe("slack:C123:1234.5678");
+
+    const priorUserMessage = createTestMessage("msg-0", "First draft", {
+      metadata: {
+        dateSent: new Date("2026-03-06T11:50:00.000Z"),
+        edited: false,
+      },
+    });
+    const priorAssistantMessage = createTestMessage(
+      "msg-0.5",
+      "Here is a draft",
+      {
+        author: {
+          userId: "BOT",
+          userName: "slack-bot",
+          fullName: "Slack Bot",
+          isBot: true,
+          isMe: true,
+        },
+        metadata: {
+          dateSent: new Date("2026-03-06T11:50:30.000Z"),
+          edited: false,
+        },
+      },
+    );
+    vi.mocked(mockAdapter.fetchMessages).mockResolvedValue({
+      messages: [priorUserMessage, priorAssistantMessage],
+      nextCursor: undefined,
+    });
+
+    const subscribedHandler = vi.fn().mockImplementation(async (thread) => {
+      expect(
+        thread.recentMessages.map((message: { text: string }) => message.text),
+      ).toEqual(["First draft", "Here is a draft", "Make it shorter"]);
+    });
+    chat.onSubscribedMessage(subscribedHandler);
+
+    const followUpMessage = createTestMessage("msg-1", "Make it shorter", {
+      metadata: {
+        dateSent: new Date("2026-03-06T11:51:00.000Z"),
+        edited: false,
+      },
+    });
+
+    await chat.handleIncomingMessage(
+      mockAdapter,
+      "slack:C123:1234.5678",
+      followUpMessage,
+    );
+
+    expect(mockAdapter.fetchMessages).toHaveBeenCalledWith(
+      "slack:C123:1234.5678",
+      {
+        limit: 50,
+      },
+    );
+    expect(subscribedHandler).toHaveBeenCalledTimes(1);
   });
 
   it("should skip messages from self", async () => {
@@ -153,7 +213,7 @@ describe("Chat", () => {
     await chat.handleIncomingMessage(
       mockAdapter,
       "slack:C123:1234.5678",
-      message
+      message,
     );
 
     expect(handler).not.toHaveBeenCalled();
@@ -170,12 +230,12 @@ describe("Chat", () => {
       await chat.handleIncomingMessage(
         mockAdapter,
         "slack:C123:1234.5678",
-        message1
+        message1,
       );
       await chat.handleIncomingMessage(
         mockAdapter,
         "slack:C123:1234.5678",
-        message2
+        message2,
       );
 
       expect(handler).toHaveBeenCalledTimes(1);
@@ -189,13 +249,13 @@ describe("Chat", () => {
       await chat.handleIncomingMessage(
         mockAdapter,
         "slack:C123:1234.5678",
-        message
+        message,
       );
 
       expect(mockState.setIfNotExists).toHaveBeenCalledWith(
         "dedupe:slack:msg-1",
         true,
-        300_000
+        300_000,
       );
     });
 
@@ -209,7 +269,7 @@ describe("Chat", () => {
       });
 
       await customChat.webhooks.slack(
-        new Request("http://test.com", { method: "POST" })
+        new Request("http://test.com", { method: "POST" }),
       );
 
       const handler = vi.fn().mockResolvedValue(undefined);
@@ -219,13 +279,13 @@ describe("Chat", () => {
       await customChat.handleIncomingMessage(
         mockAdapter,
         "slack:C123:1234.5678",
-        message
+        message,
       );
 
       expect(mockState.setIfNotExists).toHaveBeenCalledWith(
         "dedupe:slack:msg-2",
         true,
-        300_000
+        300_000,
       );
     });
 
@@ -237,13 +297,13 @@ describe("Chat", () => {
       await chat.handleIncomingMessage(
         mockAdapter,
         "slack:C123:1234.5678",
-        message
+        message,
       );
 
       // Verify setIfNotExists was called (not separate get+set)
       expect(mockState.setIfNotExists).toHaveBeenCalledTimes(1);
       expect(mockState.get).not.toHaveBeenCalledWith(
-        expect.stringContaining("dedupe:")
+        expect.stringContaining("dedupe:"),
       );
     });
 
@@ -254,7 +314,7 @@ describe("Chat", () => {
         async () => {
           callCount++;
           return callCount === 1;
-        }
+        },
       );
 
       const handler = vi.fn().mockResolvedValue(undefined);
@@ -283,7 +343,7 @@ describe("Chat", () => {
       await chat.handleIncomingMessage(
         mockAdapter,
         "slack:C123:1234.5678",
-        message
+        message,
       );
 
       expect(handler).toHaveBeenCalledTimes(1);
@@ -300,7 +360,7 @@ describe("Chat", () => {
       await chat.handleIncomingMessage(
         mockAdapter,
         "slack:C123:1234.5678",
-        message
+        message,
       );
 
       expect(mentionHandler).not.toHaveBeenCalled();
@@ -317,7 +377,7 @@ describe("Chat", () => {
     await chat.handleIncomingMessage(
       mockAdapter,
       "slack:C123:1234.5678",
-      message
+      message,
     );
 
     expect(helpHandler).toHaveBeenCalled();
@@ -333,7 +393,7 @@ describe("Chat", () => {
       await chat.handleIncomingMessage(
         mockAdapter,
         "slack:C123:1234.5678",
-        message
+        message,
       );
 
       expect(handler).toHaveBeenCalled();
@@ -351,7 +411,7 @@ describe("Chat", () => {
       await chat.handleIncomingMessage(
         mockAdapter,
         "slack:C123:1234.5678",
-        message
+        message,
       );
 
       expect(handler).toHaveBeenCalled();
@@ -369,13 +429,13 @@ describe("Chat", () => {
       // Message with @mention
       const message = createTestMessage(
         "msg-1",
-        "Hey @slack-bot what about this?"
+        "Hey @slack-bot what about this?",
       );
 
       await chat.handleIncomingMessage(
         mockAdapter,
         "slack:C123:1234.5678",
-        message
+        message,
       );
 
       expect(handler).toHaveBeenCalled();
@@ -398,13 +458,13 @@ describe("Chat", () => {
       // Now send a message WITH @mention in the subscribed thread
       const message = createTestMessage(
         "msg-1",
-        "Hey @slack-bot are you there?"
+        "Hey @slack-bot are you there?",
       );
 
       await chat.handleIncomingMessage(
         mockAdapter,
         "slack:C123:1234.5678",
-        message
+        message,
       );
 
       // onSubscribedMessage should fire, NOT onNewMention
@@ -425,7 +485,7 @@ describe("Chat", () => {
       await chat.handleIncomingMessage(
         mockAdapter,
         "slack:C123:1234.5678",
-        message
+        message,
       );
 
       // onNewMention should fire, NOT onSubscribedMessage
@@ -449,7 +509,7 @@ describe("Chat", () => {
       await chat.handleIncomingMessage(
         mockAdapter,
         "slack:C123:1234.5678",
-        message
+        message,
       );
 
       expect(capturedThread).not.toBeNull();
@@ -471,7 +531,7 @@ describe("Chat", () => {
       await chat.handleIncomingMessage(
         mockAdapter,
         "slack:C123:1234.5678",
-        message
+        message,
       );
 
       expect(capturedThread).not.toBeNull();
@@ -771,7 +831,7 @@ describe("Chat", () => {
       expect(handler).toHaveBeenCalled();
       expect(mockAdapter.postMessage).toHaveBeenCalledWith(
         "slack:C123:1234.5678",
-        "Thanks for the reaction!"
+        "Thanks for the reaction!",
       );
     });
   });
@@ -956,7 +1016,7 @@ describe("Chat", () => {
       expect(handler).toHaveBeenCalled();
       expect(mockAdapter.postMessage).toHaveBeenCalledWith(
         "slack:C123:1234.5678",
-        "Action received!"
+        "Action received!",
       );
     });
 
@@ -1002,14 +1062,14 @@ describe("Chat", () => {
       expect(mockAdapter.openModal).toHaveBeenCalledWith(
         "trigger-123",
         modal,
-        expect.any(String) // contextId (UUID)
+        expect.any(String), // contextId (UUID)
       );
       expect(result).toEqual({ viewId: "V123" });
 
       // Verify context was stored in state (contextId is a UUID)
       const calls = (mockState.set as ReturnType<typeof vi.fn>).mock.calls;
       const modalContextCall = calls.find((c: unknown[]) =>
-        (c[0] as string).startsWith("modal-context:")
+        (c[0] as string).startsWith("modal-context:"),
       );
       expect(modalContextCall).toBeDefined();
       expect(modalContextCall?.[1]).toMatchObject({
@@ -1063,7 +1123,7 @@ describe("Chat", () => {
           callbackId: "jsx_modal",
           title: "JSX Modal",
         }),
-        expect.any(String) // contextId (UUID)
+        expect.any(String), // contextId (UUID)
       );
       expect(result).toEqual({ viewId: "V123" });
     });
@@ -1107,7 +1167,7 @@ describe("Chat", () => {
       expect(result).toBeUndefined();
       expect(mockAdapter.openModal).not.toHaveBeenCalled();
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        "Cannot open modal: no triggerId available"
+        "Cannot open modal: no triggerId available",
       );
     });
 
@@ -1155,7 +1215,7 @@ describe("Chat", () => {
 
       expect(result).toBeUndefined();
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        "Cannot open modal: slack does not support modals"
+        "Cannot open modal: slack does not support modals",
       );
     });
 
@@ -1202,14 +1262,14 @@ describe("Chat", () => {
       expect(mockAdapter.openModal).toHaveBeenCalledWith(
         "trigger-456",
         modal,
-        expect.any(String)
+        expect.any(String),
       );
       expect(result).toEqual({ viewId: "V123" });
 
       // Modal context should store undefined thread
       const calls = (mockState.set as ReturnType<typeof vi.fn>).mock.calls;
       const modalContextCall = calls.find((c: unknown[]) =>
-        (c[0] as string).startsWith("modal-context:")
+        (c[0] as string).startsWith("modal-context:"),
       );
       expect(modalContextCall).toBeDefined();
       expect(modalContextCall?.[1]).toMatchObject({
@@ -1244,7 +1304,7 @@ describe("Chat", () => {
 
     it("should throw error for unknown userId format", async () => {
       await expect(chat.openDM("invalid-user-id")).rejects.toThrow(
-        'Cannot infer adapter from userId "invalid-user-id"'
+        'Cannot infer adapter from userId "invalid-user-id"',
       );
     });
 
@@ -1254,7 +1314,7 @@ describe("Chat", () => {
 
       expect(mockAdapter.postMessage).toHaveBeenCalledWith(
         "slack:DU123456:",
-        "Hello via DM!"
+        "Hello via DM!",
       );
     });
   });
@@ -1278,7 +1338,7 @@ describe("Chat", () => {
       await chat.handleIncomingMessage(
         mockAdapter,
         "slack:C123:1234.5678",
-        message
+        message,
       );
 
       expect(capturedThread).not.toBeNull();
@@ -1294,7 +1354,7 @@ describe("Chat", () => {
       await chat.handleIncomingMessage(
         mockAdapter,
         "slack:C123:1234.5678",
-        message
+        message,
       );
 
       expect(mockAdapter.isDM).toHaveBeenCalledWith("slack:C123:1234.5678");
@@ -1497,7 +1557,7 @@ describe("Chat", () => {
       expect(handler).toHaveBeenCalled();
       expect(mockAdapter.postChannelMessage).toHaveBeenCalledWith(
         "slack:C456",
-        "Hello from slash command!"
+        "Hello from slash command!",
       );
     });
 
@@ -1505,7 +1565,7 @@ describe("Chat", () => {
       let capturedEvent:
         | {
             openModal: (
-              modal: ModalElement
+              modal: ModalElement,
             ) => Promise<{ viewId: string } | undefined>;
           }
         | undefined;
@@ -1548,7 +1608,7 @@ describe("Chat", () => {
       expect(mockAdapter.openModal).toHaveBeenCalledWith(
         "trigger-123",
         modal,
-        expect.any(String) // contextId
+        expect.any(String), // contextId
       );
       expect(result).toEqual({ viewId: "V123" });
     });
@@ -1557,7 +1617,7 @@ describe("Chat", () => {
       let capturedEvent:
         | {
             openModal: (
-              modal: unknown
+              modal: unknown,
             ) => Promise<{ viewId: string } | undefined>;
           }
         | undefined;
@@ -1599,7 +1659,7 @@ describe("Chat", () => {
           callbackId: "jsx_modal",
           title: "JSX Modal",
         }),
-        expect.any(String) // contextId
+        expect.any(String), // contextId
       );
       expect(result).toEqual({ viewId: "V123" });
     });
@@ -1608,7 +1668,7 @@ describe("Chat", () => {
       let capturedEvent:
         | {
             openModal: (
-              modal: ModalElement
+              modal: ModalElement,
             ) => Promise<{ viewId: string } | undefined>;
           }
         | undefined;
@@ -1648,7 +1708,7 @@ describe("Chat", () => {
       expect(result).toBeUndefined();
       expect(mockAdapter.openModal).not.toHaveBeenCalled();
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        "Cannot open modal: no triggerId available"
+        "Cannot open modal: no triggerId available",
       );
     });
 
@@ -1661,7 +1721,7 @@ describe("Chat", () => {
       let capturedEvent:
         | {
             openModal: (
-              modal: ModalElement
+              modal: ModalElement,
             ) => Promise<{ viewId: string } | undefined>;
           }
         | undefined;
@@ -1701,7 +1761,7 @@ describe("Chat", () => {
 
       expect(result).toBeUndefined();
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        "Cannot open modal: slack does not support modals"
+        "Cannot open modal: slack does not support modals",
       );
     });
 
@@ -1739,7 +1799,7 @@ describe("Chat", () => {
       let capturedEvent:
         | {
             openModal: (
-              modal: ModalElement
+              modal: ModalElement,
             ) => Promise<{ viewId: string } | undefined>;
           }
         | undefined;
@@ -1804,7 +1864,7 @@ describe("Chat", () => {
           adapter: mockAdapter,
           raw: {},
         },
-        contextId
+        contextId,
       );
 
       expect(modalSubmitHandler).toHaveBeenCalled();
@@ -1818,7 +1878,7 @@ describe("Chat", () => {
       let capturedEvent:
         | {
             openModal: (
-              modal: ModalElement
+              modal: ModalElement,
             ) => Promise<{ viewId: string } | undefined>;
           }
         | undefined;
@@ -1877,12 +1937,12 @@ describe("Chat", () => {
           adapter: mockAdapter,
           raw: {},
         },
-        contextId
+        contextId,
       );
 
       expect(mockAdapter.postChannelMessage).toHaveBeenCalledWith(
         "slack:C456",
-        "Thank you for your feedback!"
+        "Thank you for your feedback!",
       );
     });
 
@@ -1950,7 +2010,7 @@ describe("Chat", () => {
           adapter: mockAdapter,
           raw: {},
         },
-        contextId
+        contextId,
       );
 
       expect(modalSubmitHandler).toHaveBeenCalled();

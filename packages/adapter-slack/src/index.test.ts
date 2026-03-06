@@ -31,7 +31,7 @@ const mockLogger: Logger = {
 function createSlackSignature(
   body: string,
   secret: string,
-  timestamp: number
+  timestamp: number,
 ): string {
   const sigBasestring = `v0:${timestamp}:${body}`;
   return `v0=${createHmac("sha256", secret).update(sigBasestring).digest("hex")}`;
@@ -40,7 +40,7 @@ function createSlackSignature(
 function createWebhookRequest(
   body: string,
   secret: string,
-  options?: { timestampOffset?: number; contentType?: string }
+  options?: { timestampOffset?: number; contentType?: string },
 ): Request {
   const timestamp =
     Math.floor(Date.now() / 1000) + (options?.timestampOffset ?? 0);
@@ -217,10 +217,10 @@ describe("decodeThreadId", () => {
     expect(() => adapter.decodeThreadId("invalid")).toThrow(ValidationError);
     expect(() => adapter.decodeThreadId("slack")).toThrow(ValidationError);
     expect(() => adapter.decodeThreadId("teams:C12345:123")).toThrow(
-      ValidationError
+      ValidationError,
     );
     expect(() => adapter.decodeThreadId("slack:A:B:C:D")).toThrow(
-      ValidationError
+      ValidationError,
     );
   });
 });
@@ -1017,7 +1017,7 @@ describe("multi-workspace mode", () => {
       logger: mockLogger,
     });
     await expect(
-      adapter.setInstallation("T123", { botToken: "xoxb-token" })
+      adapter.setInstallation("T123", { botToken: "xoxb-token" }),
     ).rejects.toThrow("Adapter not initialized");
   });
 
@@ -1224,7 +1224,7 @@ describe("multi-workspace mode with encryption", () => {
         signingSecret: secret,
         logger: mockLogger,
         encryptionKey: shortKey,
-      })
+      }),
     ).toThrow("Encryption key must decode to exactly 32 bytes");
   });
 });
@@ -1305,7 +1305,7 @@ describe("handleOAuthCallback", () => {
     await adapter.initialize(createMockChatInstance(state));
 
     const request = new Request(
-      "https://example.com/auth/callback/slack?code=oauth-code-123"
+      "https://example.com/auth/callback/slack?code=oauth-code-123",
     );
     const result = await adapter.handleOAuthCallback(request);
 
@@ -1329,10 +1329,10 @@ describe("handleOAuthCallback", () => {
     await adapter.initialize(createMockChatInstance(state));
 
     const request = new Request(
-      "https://example.com/auth/callback/slack?code=test"
+      "https://example.com/auth/callback/slack?code=test",
     );
     await expect(adapter.handleOAuthCallback(request)).rejects.toThrow(
-      "clientId and clientSecret are required"
+      "clientId and clientSecret are required",
     );
   });
 });
@@ -1391,7 +1391,7 @@ describe("withBotToken", () => {
 describe("DM message handling", () => {
   const secret = "test-signing-secret";
 
-  it("top-level DM messages use empty threadTs (matches openDM subscriptions)", async () => {
+  it("top-level DM messages use their own ts as thread context", async () => {
     const state = createMockState();
     const chatInstance = createMockChatInstance(state);
     const adapter = createSlackAdapter({
@@ -1418,9 +1418,9 @@ describe("DM message handling", () => {
 
     expect(chatInstance.processMessage).toHaveBeenCalledWith(
       adapter,
-      "slack:D_DM_CHAN:",
+      "slack:D_DM_CHAN:1234567890.111111",
       expect.any(Function),
-      undefined
+      undefined,
     );
   });
 
@@ -1454,7 +1454,7 @@ describe("DM message handling", () => {
       adapter,
       "slack:D_DM_CHAN:1234567890.111111",
       expect.any(Function),
-      undefined
+      undefined,
     );
   });
 
@@ -1570,7 +1570,7 @@ describe("message subtype handling", () => {
       adapter,
       "slack:C_CHAN:1234567890.000000",
       expect.any(Function),
-      undefined
+      undefined,
     );
   });
 
@@ -1604,7 +1604,7 @@ describe("message subtype handling", () => {
       adapter,
       "slack:C_CHAN:1234567890.000000",
       expect.any(Function),
-      undefined
+      undefined,
     );
   });
 
@@ -1911,7 +1911,7 @@ function getClient(adapter: SlackAdapter): MockableClient {
 function mockClientMethod(
   adapter: SlackAdapter,
   path: string,
-  mockFn: ReturnType<typeof vi.fn>
+  mockFn: ReturnType<typeof vi.fn>,
 ): void {
   const parts = path.split(".");
   let obj: Record<string, unknown> = getClient(adapter) as unknown as Record<
@@ -1944,12 +1944,12 @@ describe("postMessage", () => {
     mockClientMethod(
       adapter,
       "chat.postMessage",
-      vi.fn().mockResolvedValue({ ok: true, ts: "1234567890.999999" })
+      vi.fn().mockResolvedValue({ ok: true, ts: "1234567890.999999" }),
     );
 
     const result = await adapter.postMessage(
       "slack:C123:1234567890.000000",
-      "Hello from test"
+      "Hello from test",
     );
 
     expect(result.id).toBe("1234567890.999999");
@@ -1962,7 +1962,7 @@ describe("postMessage", () => {
         channel: "C123",
         thread_ts: "1234567890.000000",
         token: "xoxb-test-token",
-      })
+      }),
     );
   });
 
@@ -1976,7 +1976,7 @@ describe("postMessage", () => {
     mockClientMethod(
       adapter,
       "chat.postMessage",
-      vi.fn().mockResolvedValue({ ok: true, ts: "1111111111.000000" })
+      vi.fn().mockResolvedValue({ ok: true, ts: "1111111111.000000" }),
     );
 
     const result = await adapter.postMessage("slack:C123:", "Channel message");
@@ -1986,8 +1986,8 @@ describe("postMessage", () => {
     expect(client.chat.postMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         channel: "C123",
-        thread_ts: "",
-      })
+        thread_ts: undefined,
+      }),
     );
   });
 
@@ -2001,7 +2001,7 @@ describe("postMessage", () => {
     mockClientMethod(
       adapter,
       "chat.postMessage",
-      vi.fn().mockResolvedValue({ ok: true, ts: "1234567890.999999" })
+      vi.fn().mockResolvedValue({ ok: true, ts: "1234567890.999999" }),
     );
 
     await adapter.postMessage("slack:C123:1234567890.000000", "test");
@@ -2011,7 +2011,7 @@ describe("postMessage", () => {
       expect.objectContaining({
         unfurl_links: false,
         unfurl_media: false,
-      })
+      }),
     );
   });
 
@@ -2025,7 +2025,7 @@ describe("postMessage", () => {
     mockClientMethod(
       adapter,
       "files.uploadV2",
-      vi.fn().mockResolvedValue({ ok: true })
+      vi.fn().mockResolvedValue({ ok: true }),
     );
 
     const chatPostMessage = vi.fn();
@@ -2058,13 +2058,13 @@ describe("postEphemeral", () => {
     mockClientMethod(
       adapter,
       "chat.postEphemeral",
-      vi.fn().mockResolvedValue({ ok: true, message_ts: "1234567890.888888" })
+      vi.fn().mockResolvedValue({ ok: true, message_ts: "1234567890.888888" }),
     );
 
     const result = await adapter.postEphemeral(
       "slack:C123:1234567890.000000",
       "U_USER_1",
-      "Ephemeral text"
+      "Ephemeral text",
     );
 
     expect(result.id).toBe("1234567890.888888");
@@ -2078,7 +2078,7 @@ describe("postEphemeral", () => {
         thread_ts: "1234567890.000000",
         user: "U_USER_1",
         token: "xoxb-test-token",
-      })
+      }),
     );
   });
 
@@ -2092,7 +2092,7 @@ describe("postEphemeral", () => {
     mockClientMethod(
       adapter,
       "chat.postEphemeral",
-      vi.fn().mockResolvedValue({ ok: true, message_ts: "1234567890.888888" })
+      vi.fn().mockResolvedValue({ ok: true, message_ts: "1234567890.888888" }),
     );
 
     await adapter.postEphemeral("slack:C123:", "U_USER_1", "Ephemeral text");
@@ -2103,7 +2103,7 @@ describe("postEphemeral", () => {
         channel: "C123",
         thread_ts: undefined,
         user: "U_USER_1",
-      })
+      }),
     );
   });
 
@@ -2117,13 +2117,13 @@ describe("postEphemeral", () => {
     mockClientMethod(
       adapter,
       "chat.postEphemeral",
-      vi.fn().mockResolvedValue({ ok: true })
+      vi.fn().mockResolvedValue({ ok: true }),
     );
 
     const result = await adapter.postEphemeral(
       "slack:C123:1234567890.000000",
       "U_USER_1",
-      "test"
+      "test",
     );
 
     expect(result.id).toBe("");
@@ -2147,13 +2147,13 @@ describe("editMessage", () => {
     mockClientMethod(
       adapter,
       "chat.update",
-      vi.fn().mockResolvedValue({ ok: true, ts: "1234567890.123456" })
+      vi.fn().mockResolvedValue({ ok: true, ts: "1234567890.123456" }),
     );
 
     const result = await adapter.editMessage(
       "slack:C123:1234567890.000000",
       "1234567890.123456",
-      "Updated message"
+      "Updated message",
     );
 
     expect(result.id).toBe("1234567890.123456");
@@ -2165,7 +2165,7 @@ describe("editMessage", () => {
         channel: "C123",
         ts: "1234567890.123456",
         token: "xoxb-test-token",
-      })
+      }),
     );
   });
 });
@@ -2187,12 +2187,12 @@ describe("deleteMessage", () => {
     mockClientMethod(
       adapter,
       "chat.delete",
-      vi.fn().mockResolvedValue({ ok: true })
+      vi.fn().mockResolvedValue({ ok: true }),
     );
 
     await adapter.deleteMessage(
       "slack:C123:1234567890.000000",
-      "1234567890.123456"
+      "1234567890.123456",
     );
 
     const client = getClient(adapter);
@@ -2201,7 +2201,7 @@ describe("deleteMessage", () => {
         channel: "C123",
         ts: "1234567890.123456",
         token: "xoxb-test-token",
-      })
+      }),
     );
   });
 });
@@ -2223,13 +2223,13 @@ describe("addReaction", () => {
     mockClientMethod(
       adapter,
       "reactions.add",
-      vi.fn().mockResolvedValue({ ok: true })
+      vi.fn().mockResolvedValue({ ok: true }),
     );
 
     await adapter.addReaction(
       "slack:C123:1234567890.000000",
       "1234567890.123456",
-      "thumbsup"
+      "thumbsup",
     );
 
     const client = getClient(adapter);
@@ -2239,7 +2239,7 @@ describe("addReaction", () => {
         timestamp: "1234567890.123456",
         name: expect.any(String),
         token: "xoxb-test-token",
-      })
+      }),
     );
   });
 
@@ -2253,13 +2253,13 @@ describe("addReaction", () => {
     mockClientMethod(
       adapter,
       "reactions.add",
-      vi.fn().mockResolvedValue({ ok: true })
+      vi.fn().mockResolvedValue({ ok: true }),
     );
 
     await adapter.addReaction(
       "slack:C123:1234567890.000000",
       "1234567890.123456",
-      ":thumbsup:"
+      ":thumbsup:",
     );
 
     const client = getClient(adapter);
@@ -2281,13 +2281,13 @@ describe("removeReaction", () => {
     mockClientMethod(
       adapter,
       "reactions.remove",
-      vi.fn().mockResolvedValue({ ok: true })
+      vi.fn().mockResolvedValue({ ok: true }),
     );
 
     await adapter.removeReaction(
       "slack:C123:1234567890.000000",
       "1234567890.123456",
-      "thumbsup"
+      "thumbsup",
     );
 
     const client = getClient(adapter);
@@ -2297,7 +2297,7 @@ describe("removeReaction", () => {
         timestamp: "1234567890.123456",
         name: expect.any(String),
         token: "xoxb-test-token",
-      })
+      }),
     );
   });
 });
@@ -2319,7 +2319,7 @@ describe("openModal", () => {
     mockClientMethod(
       adapter,
       "views.open",
-      vi.fn().mockResolvedValue({ ok: true, view: { id: "V_MODAL_1" } })
+      vi.fn().mockResolvedValue({ ok: true, view: { id: "V_MODAL_1" } }),
     );
 
     const modal = {
@@ -2341,7 +2341,7 @@ describe("openModal", () => {
           type: "modal",
           callback_id: "test_modal",
         }),
-      })
+      }),
     );
   });
 
@@ -2355,7 +2355,7 @@ describe("openModal", () => {
     mockClientMethod(
       adapter,
       "views.open",
-      vi.fn().mockResolvedValue({ ok: true, view: { id: "V_CTX_1" } })
+      vi.fn().mockResolvedValue({ ok: true, view: { id: "V_CTX_1" } }),
     );
 
     const modal = {
@@ -2384,7 +2384,7 @@ describe("openModal", () => {
     mockClientMethod(
       adapter,
       "views.open",
-      vi.fn().mockResolvedValue({ ok: true, view: { id: "V_PM_1" } })
+      vi.fn().mockResolvedValue({ ok: true, view: { id: "V_PM_1" } }),
     );
 
     const modal = {
@@ -2417,7 +2417,7 @@ describe("updateModal", () => {
     mockClientMethod(
       adapter,
       "views.update",
-      vi.fn().mockResolvedValue({ ok: true, view: { id: "V_UPDATED_1" } })
+      vi.fn().mockResolvedValue({ ok: true, view: { id: "V_UPDATED_1" } }),
     );
 
     const modal = {
@@ -2439,7 +2439,7 @@ describe("updateModal", () => {
           type: "modal",
           callback_id: "updated_modal",
         }),
-      })
+      }),
     );
   });
 });
@@ -2461,7 +2461,7 @@ describe("startTyping", () => {
     mockClientMethod(
       adapter,
       "assistant.threads.setStatus",
-      vi.fn().mockResolvedValue({ ok: true })
+      vi.fn().mockResolvedValue({ ok: true }),
     );
 
     await adapter.startTyping("slack:C123:1234567890.000000");
@@ -2474,7 +2474,7 @@ describe("startTyping", () => {
         status: "Typing...",
         loading_messages: ["Typing..."],
         token: "xoxb-test-token",
-      })
+      }),
     );
   });
 
@@ -2488,12 +2488,12 @@ describe("startTyping", () => {
     mockClientMethod(
       adapter,
       "assistant.threads.setStatus",
-      vi.fn().mockResolvedValue({ ok: true })
+      vi.fn().mockResolvedValue({ ok: true }),
     );
 
     await adapter.startTyping(
       "slack:C123:1234567890.000000",
-      "Searching documents..."
+      "Searching documents...",
     );
 
     const client = getClient(adapter);
@@ -2501,7 +2501,7 @@ describe("startTyping", () => {
       expect.objectContaining({
         status: "Searching documents...",
         loading_messages: ["Searching documents..."],
-      })
+      }),
     );
   });
 
@@ -2515,7 +2515,7 @@ describe("startTyping", () => {
     mockClientMethod(
       adapter,
       "assistant.threads.setStatus",
-      vi.fn().mockResolvedValue({ ok: true })
+      vi.fn().mockResolvedValue({ ok: true }),
     );
 
     await adapter.startTyping("slack:C123:");
@@ -2534,7 +2534,7 @@ describe("startTyping", () => {
     mockClientMethod(
       adapter,
       "assistant.threads.setStatus",
-      vi.fn().mockRejectedValue(new Error("API error"))
+      vi.fn().mockRejectedValue(new Error("API error")),
     );
 
     // Should not throw
@@ -2562,7 +2562,7 @@ describe("openDM", () => {
       vi.fn().mockResolvedValue({
         ok: true,
         channel: { id: "D_DM_CHANNEL" },
-      })
+      }),
     );
 
     const threadId = await adapter.openDM("U_TARGET_USER");
@@ -2574,7 +2574,7 @@ describe("openDM", () => {
       expect.objectContaining({
         users: "U_TARGET_USER",
         token: "xoxb-test-token",
-      })
+      }),
     );
   });
 
@@ -2588,11 +2588,11 @@ describe("openDM", () => {
     mockClientMethod(
       adapter,
       "conversations.open",
-      vi.fn().mockResolvedValue({ ok: true, channel: {} })
+      vi.fn().mockResolvedValue({ ok: true, channel: {} }),
     );
 
     await expect(adapter.openDM("U_BAD_USER")).rejects.toThrow(
-      "Failed to open DM"
+      "Failed to open DM",
     );
   });
 });
@@ -2634,7 +2634,7 @@ describe("fetchMessages", () => {
           },
         ],
         response_metadata: { next_cursor: "cursor-abc" },
-      })
+      }),
     );
     // Mock users.info for resolveInlineMentions
     mockClientMethod(
@@ -2643,7 +2643,7 @@ describe("fetchMessages", () => {
       vi.fn().mockResolvedValue({
         ok: true,
         user: { name: "user1", real_name: "User One" },
-      })
+      }),
     );
 
     const state = createMockState();
@@ -2688,7 +2688,7 @@ describe("fetchMessages", () => {
           },
         ],
         has_more: false,
-      })
+      }),
     );
     mockClientMethod(
       adapter,
@@ -2696,7 +2696,7 @@ describe("fetchMessages", () => {
       vi.fn().mockResolvedValue({
         ok: true,
         user: { name: "user1" },
-      })
+      }),
     );
 
     const state = createMockState();
@@ -2735,7 +2735,7 @@ describe("fetchMessages", () => {
       vi.fn().mockResolvedValue({
         ok: true,
         user: { name: "user1" },
-      })
+      }),
     );
 
     const state = createMockState();
@@ -2748,8 +2748,60 @@ describe("fetchMessages", () => {
     expect(mockReplies).toHaveBeenCalledWith(
       expect.objectContaining({
         latest: "1000.000",
-      })
+      }),
     );
+  });
+
+  it("uses conversations.history for DM threads without a thread timestamp", async () => {
+    const adapter = createSlackAdapter({
+      botToken: "xoxb-test-token",
+      signingSecret: secret,
+      logger: mockLogger,
+      botUserId: "U_BOT",
+    });
+
+    const mockHistory = vi.fn().mockResolvedValue({
+      ok: true,
+      messages: [
+        {
+          type: "message",
+          user: "U1",
+          text: "dm message",
+          ts: "1000.000",
+          channel: "D123",
+          files: [
+            {
+              id: "F123",
+              mimetype: "image/png",
+              name: "chart.png",
+              url_private: "https://files.slack.com/chart.png",
+            },
+          ],
+        },
+      ],
+    });
+
+    mockClientMethod(adapter, "conversations.history", mockHistory);
+    mockClientMethod(
+      adapter,
+      "users.info",
+      vi.fn().mockResolvedValue({ ok: true, user: { name: "user1" } }),
+    );
+
+    const state = createMockState();
+    await adapter.initialize(createMockChatInstance(state));
+
+    const result = await adapter.fetchMessages("slack:D123:");
+
+    expect(mockHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: "D123",
+      }),
+    );
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0]?.attachments[0]?.type).toBe("image");
+    expect(result.messages[0]?.attachments[0]?.name).toBe("chart.png");
+    expect(result.messages[0]?.threadId).toBe("slack:D123:1000.000");
   });
 });
 
@@ -2782,7 +2834,7 @@ describe("fetchMessage", () => {
             channel: "C123",
           },
         ],
-      })
+      }),
     );
     mockClientMethod(
       adapter,
@@ -2790,7 +2842,7 @@ describe("fetchMessage", () => {
       vi.fn().mockResolvedValue({
         ok: true,
         user: { name: "user1" },
-      })
+      }),
     );
 
     const state = createMockState();
@@ -2798,7 +2850,7 @@ describe("fetchMessage", () => {
 
     const msg = await adapter.fetchMessage(
       "slack:C123:1234567890.000000",
-      "1234567890.123456"
+      "1234567890.123456",
     );
 
     expect(msg).not.toBeNull();
@@ -2827,7 +2879,7 @@ describe("fetchMessage", () => {
             channel: "C123",
           },
         ],
-      })
+      }),
     );
 
     const state = createMockState();
@@ -2835,7 +2887,7 @@ describe("fetchMessage", () => {
 
     const msg = await adapter.fetchMessage(
       "slack:C123:1234567890.000000",
-      "1234567890.123456"
+      "1234567890.123456",
     );
 
     expect(msg).toBeNull();
@@ -2870,7 +2922,7 @@ describe("fetchChannelInfo", () => {
           purpose: { value: "General discussion" },
           topic: { value: "Anything goes" },
         },
-      })
+      }),
     );
 
     const info = await adapter.fetchChannelInfo("slack:C123");
@@ -2896,7 +2948,7 @@ describe("fetchChannelInfo", () => {
       vi.fn().mockResolvedValue({
         ok: true,
         channel: { id: "D123", is_im: true },
-      })
+      }),
     );
 
     const info = await adapter.fetchChannelInfo("slack:D123");
@@ -2911,7 +2963,7 @@ describe("fetchChannelInfo", () => {
     });
 
     await expect(adapter.fetchChannelInfo("invalid")).rejects.toThrow(
-      ValidationError
+      ValidationError,
     );
   });
 });
@@ -2937,7 +2989,7 @@ describe("fetchChannelMessages", () => {
           { type: "message", user: "U2", text: "older", ts: "1001.000" },
         ],
         has_more: true,
-      })
+      }),
     );
     mockClientMethod(
       adapter,
@@ -2945,7 +2997,7 @@ describe("fetchChannelMessages", () => {
       vi.fn().mockResolvedValue({
         ok: true,
         user: { name: "user1" },
-      })
+      }),
     );
 
     const state = createMockState();
@@ -2975,7 +3027,7 @@ describe("fetchChannelMessages", () => {
           { type: "message", user: "U2", text: "newer", ts: "1001.000" },
         ],
         has_more: false,
-      })
+      }),
     );
     mockClientMethod(
       adapter,
@@ -2983,7 +3035,7 @@ describe("fetchChannelMessages", () => {
       vi.fn().mockResolvedValue({
         ok: true,
         user: { name: "user1" },
-      })
+      }),
     );
 
     const state = createMockState();
@@ -3004,7 +3056,7 @@ describe("fetchChannelMessages", () => {
     });
 
     await expect(adapter.fetchChannelMessages("invalid")).rejects.toThrow(
-      ValidationError
+      ValidationError,
     );
   });
 });
@@ -3022,12 +3074,12 @@ describe("postChannelMessage", () => {
     mockClientMethod(
       adapter,
       "chat.postMessage",
-      vi.fn().mockResolvedValue({ ok: true, ts: "2222222222.000000" })
+      vi.fn().mockResolvedValue({ ok: true, ts: "2222222222.000000" }),
     );
 
     const result = await adapter.postChannelMessage(
       "slack:C123",
-      "Top-level message"
+      "Top-level message",
     );
 
     expect(result.id).toBe("2222222222.000000");
@@ -3036,8 +3088,8 @@ describe("postChannelMessage", () => {
     expect(client.chat.postMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         channel: "C123",
-        thread_ts: "",
-      })
+        thread_ts: undefined,
+      }),
     );
   });
 
@@ -3049,7 +3101,7 @@ describe("postChannelMessage", () => {
     });
 
     await expect(adapter.postChannelMessage("invalid", "test")).rejects.toThrow(
-      ValidationError
+      ValidationError,
     );
   });
 });
@@ -3095,7 +3147,7 @@ describe("listThreads", () => {
           },
         ],
         response_metadata: {},
-      })
+      }),
     );
     mockClientMethod(
       adapter,
@@ -3103,7 +3155,7 @@ describe("listThreads", () => {
       vi.fn().mockResolvedValue({
         ok: true,
         user: { name: "user1" },
-      })
+      }),
     );
 
     const state = createMockState();
@@ -3125,7 +3177,7 @@ describe("listThreads", () => {
     });
 
     await expect(adapter.listThreads("invalid")).rejects.toThrow(
-      ValidationError
+      ValidationError,
     );
   });
 });
@@ -3143,7 +3195,7 @@ describe("channelIdFromThreadId", () => {
 
   it("extracts channel ID from thread ID", () => {
     const channelId = adapter.channelIdFromThreadId(
-      "slack:C123:1234567890.000000"
+      "slack:C123:1234567890.000000",
     );
     expect(channelId).toBe("slack:C123");
   });
@@ -3215,12 +3267,12 @@ describe("ephemeral message ID encoding", () => {
     mockClientMethod(
       adapter,
       "chat.delete",
-      vi.fn().mockResolvedValue({ ok: true })
+      vi.fn().mockResolvedValue({ ok: true }),
     );
 
     await adapter.deleteMessage(
       "slack:C123:1234567890.000000",
-      "1234567890.123456"
+      "1234567890.123456",
     );
 
     const client = getClient(adapter);
@@ -3252,11 +3304,11 @@ describe("error handling", () => {
     mockClientMethod(
       adapter,
       "chat.postMessage",
-      vi.fn().mockRejectedValue(rateLimitError)
+      vi.fn().mockRejectedValue(rateLimitError),
     );
 
     await expect(
-      adapter.postMessage("slack:C123:1234567890.000000", "test")
+      adapter.postMessage("slack:C123:1234567890.000000", "test"),
     ).rejects.toBeInstanceOf(AdapterRateLimitError);
   });
 
@@ -3272,11 +3324,11 @@ describe("error handling", () => {
     mockClientMethod(
       adapter,
       "chat.postMessage",
-      vi.fn().mockRejectedValue(genericError)
+      vi.fn().mockRejectedValue(genericError),
     );
 
     await expect(
-      adapter.postMessage("slack:C123:1234567890.000000", "test")
+      adapter.postMessage("slack:C123:1234567890.000000", "test"),
     ).rejects.toThrow("channel_not_found");
   });
 
@@ -3295,15 +3347,15 @@ describe("error handling", () => {
       vi.fn().mockRejectedValue({
         code: "slack_webapi_platform_error",
         data: { error: "ratelimited" },
-      })
+      }),
     );
 
     await expect(
       adapter.addReaction(
         "slack:C123:1234567890.000000",
         "1234.000",
-        "thumbsup"
-      )
+        "thumbsup",
+      ),
     ).rejects.toBeInstanceOf(AdapterRateLimitError);
   });
 
@@ -3322,11 +3374,11 @@ describe("error handling", () => {
       vi.fn().mockRejectedValue({
         code: "slack_webapi_platform_error",
         data: { error: "ratelimited" },
-      })
+      }),
     );
 
     await expect(
-      adapter.deleteMessage("slack:C123:1234567890.000000", "1234.000")
+      adapter.deleteMessage("slack:C123:1234567890.000000", "1234.000"),
     ).rejects.toBeInstanceOf(AdapterRateLimitError);
   });
 
@@ -3345,11 +3397,11 @@ describe("error handling", () => {
       vi.fn().mockRejectedValue({
         code: "slack_webapi_platform_error",
         data: { error: "ratelimited" },
-      })
+      }),
     );
 
     await expect(
-      adapter.editMessage("slack:C123:1234567890.000000", "1234.000", "update")
+      adapter.editMessage("slack:C123:1234567890.000000", "1234.000", "update"),
     ).rejects.toBeInstanceOf(AdapterRateLimitError);
   });
 });
@@ -3381,7 +3433,7 @@ describe("resolveInlineMentions", () => {
         ok: true,
         user_id: "U_BOT",
         bot_id: "B_BOT",
-      })
+      }),
     );
 
     await adapter.initialize(chatInstance);
@@ -3397,7 +3449,7 @@ describe("resolveInlineMentions", () => {
           real_name: "John Doe",
           profile: { display_name: "John", real_name: "John Doe" },
         },
-      })
+      }),
     );
 
     const body = JSON.stringify({
@@ -3487,7 +3539,7 @@ describe("fetchThread", () => {
       vi.fn().mockResolvedValue({
         ok: true,
         channel: { id: "C123", name: "general" },
-      })
+      }),
     );
 
     const info = await adapter.fetchThread("slack:C123:1234567890.000000");
@@ -3522,7 +3574,7 @@ describe("initialize", () => {
         user_id: "U_INITIALIZED_BOT",
         bot_id: "B_INITIALIZED_BOT",
         user: "testbot",
-      })
+      }),
     );
 
     await adapter.initialize(createMockChatInstance(state));
@@ -3542,7 +3594,7 @@ describe("initialize", () => {
     mockClientMethod(
       adapter,
       "auth.test",
-      vi.fn().mockRejectedValue(new Error("invalid_auth"))
+      vi.fn().mockRejectedValue(new Error("invalid_auth")),
     );
 
     // Should not throw
@@ -3582,7 +3634,7 @@ describe("publishHomeView", () => {
     mockClientMethod(
       adapter,
       "views.publish",
-      vi.fn().mockResolvedValue({ ok: true })
+      vi.fn().mockResolvedValue({ ok: true }),
     );
 
     const view = {
@@ -3597,7 +3649,7 @@ describe("publishHomeView", () => {
       expect.objectContaining({
         user_id: "U_USER_1",
         token: "xoxb-test-token",
-      })
+      }),
     );
   });
 });
@@ -3619,7 +3671,7 @@ describe("setSuggestedPrompts", () => {
     mockClientMethod(
       adapter,
       "assistant.threads.setSuggestedPrompts",
-      vi.fn().mockResolvedValue({ ok: true })
+      vi.fn().mockResolvedValue({ ok: true }),
     );
 
     await adapter.setSuggestedPrompts("C123", "1234567890.000000", [
@@ -3633,7 +3685,7 @@ describe("setSuggestedPrompts", () => {
         thread_ts: "1234567890.000000",
         prompts: [{ title: "Help", message: "How can I help?" }],
         token: "xoxb-test-token",
-      })
+      }),
     );
   });
 
@@ -3647,21 +3699,21 @@ describe("setSuggestedPrompts", () => {
     mockClientMethod(
       adapter,
       "assistant.threads.setSuggestedPrompts",
-      vi.fn().mockResolvedValue({ ok: true })
+      vi.fn().mockResolvedValue({ ok: true }),
     );
 
     await adapter.setSuggestedPrompts(
       "C123",
       "1234567890.000000",
       [{ title: "Prompt", message: "Try this" }],
-      "Pick a prompt"
+      "Pick a prompt",
     );
 
     const client = getClient(adapter);
     expect(client.assistant.threads.setSuggestedPrompts).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "Pick a prompt",
-      })
+      }),
     );
   });
 });
@@ -3683,13 +3735,13 @@ describe("setAssistantStatus", () => {
     mockClientMethod(
       adapter,
       "assistant.threads.setStatus",
-      vi.fn().mockResolvedValue({ ok: true })
+      vi.fn().mockResolvedValue({ ok: true }),
     );
 
     await adapter.setAssistantStatus(
       "C123",
       "1234567890.000000",
-      "Thinking..."
+      "Thinking...",
     );
 
     const client = getClient(adapter);
@@ -3699,7 +3751,7 @@ describe("setAssistantStatus", () => {
         thread_ts: "1234567890.000000",
         status: "Thinking...",
         token: "xoxb-test-token",
-      })
+      }),
     );
   });
 
@@ -3713,21 +3765,21 @@ describe("setAssistantStatus", () => {
     mockClientMethod(
       adapter,
       "assistant.threads.setStatus",
-      vi.fn().mockResolvedValue({ ok: true })
+      vi.fn().mockResolvedValue({ ok: true }),
     );
 
     await adapter.setAssistantStatus(
       "C123",
       "1234567890.000000",
       "Working...",
-      ["Step 1", "Step 2"]
+      ["Step 1", "Step 2"],
     );
 
     const client = getClient(adapter);
     expect(client.assistant.threads.setStatus).toHaveBeenCalledWith(
       expect.objectContaining({
         loading_messages: ["Step 1", "Step 2"],
-      })
+      }),
     );
   });
 });
@@ -3749,13 +3801,13 @@ describe("setAssistantTitle", () => {
     mockClientMethod(
       adapter,
       "assistant.threads.setTitle",
-      vi.fn().mockResolvedValue({ ok: true })
+      vi.fn().mockResolvedValue({ ok: true }),
     );
 
     await adapter.setAssistantTitle(
       "C123",
       "1234567890.000000",
-      "My Thread Title"
+      "My Thread Title",
     );
 
     const client = getClient(adapter);
@@ -3765,7 +3817,7 @@ describe("setAssistantTitle", () => {
         thread_ts: "1234567890.000000",
         title: "My Thread Title",
         token: "xoxb-test-token",
-      })
+      }),
     );
   });
 });
@@ -3818,7 +3870,7 @@ describe("handleWebhook - assistant events", () => {
         channelId: "C_ASSISTANT",
         adapter,
       }),
-      undefined
+      undefined,
     );
   });
 
@@ -3864,7 +3916,7 @@ describe("handleWebhook - assistant events", () => {
           channelId: "C_NEW_CONTEXT",
         }),
       }),
-      undefined
+      undefined,
     );
   });
 
@@ -3902,7 +3954,7 @@ describe("handleWebhook - assistant events", () => {
         channelId: "D_HOME_CHAN",
         adapter,
       }),
-      undefined
+      undefined,
     );
   });
 
@@ -3941,7 +3993,7 @@ describe("handleWebhook - assistant events", () => {
         inviterId: "U_INVITER",
         adapter,
       }),
-      undefined
+      undefined,
     );
   });
 });
